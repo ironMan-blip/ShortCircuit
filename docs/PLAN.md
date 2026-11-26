@@ -33,12 +33,16 @@ gets a monthly spend limit (e.g. $40) so a loop can never run up a bill.
   Gmail Send node. Its recipient is the expression `{{$env.OWNER_EMAIL}}`; it has no `to`,
   `cc` or `bcc` input, so no caller, prompt or mail text can choose a recipient.
   `scripts/check-workflows.sh` fails if any other exported workflow contains a Gmail
-  send or reply node (run before every commit and at M3).
+  send or reply node, **or any HTTP Request node using the `Gmail Bot` credential** (the
+  Gmail API's `messages.send` is reachable that way too). Run before every commit and at M3.
 - **Videos go only to the channel of `CHANNEL_HANDLE`.** Before any YouTube write (upload,
   update, delete) and before `sc.livecheck` changes a job, the sub-workflow `sc.channel`
   (§10.6) checks that the OAuth credential's channel is that handle's channel. On a
   mismatch nothing is written and an `ALERT` is sent. `scripts/check-workflows.sh` also fails
-  if a YouTube write node appears outside `sc.publish`.
+  if a YouTube write node, or an HTTP Request node with the `YouTube Channel` credential and
+  any method but `GET`, appears outside `sc.publish`.
+- **Drive is never shared publicly.** `scripts/check-workflows.sh` fails if a Drive
+  share/permission node appears outside `sc.config`, or uses any permission type but `user`.
 
 **Write both exactly.** `OWNER_EMAIL` is the address exactly as it appears in the owner's
 mail (`From` is compared to it character for character). `CHANNEL_HANDLE` is the handle
@@ -53,12 +57,17 @@ created (a plain `restart` keeps the old values), so a `launchd` agent runs
 `scripts/apply-env.sh` when the file changes (`WatchPaths`) **and every 60 s**
 (`StartInterval`). The timer is the safety net: many editors save by writing a new file
 and renaming it over the old one, which a path watch can miss. Each run hashes `.env` and
-compares it with the hash it last applied (`data/.env.applied.sha256`) and the hash it
-last refused (`data/.env.rejected.sha256`); a match with either → exit at once, so the
-timer costs nothing. n8n never reads `.env` itself: its `env_file` is `data/.env.live`
+compares it with the hash it last applied (`state/.env.applied.sha256`) and the hash it
+last refused (`state/.env.rejected.sha256`); a match with either → exit at once, so the
+timer costs nothing. n8n never reads `.env` itself: its `env_file` is `state/.env.live`
 (§11), a copy that only this script writes, so nothing unchecked can reach n8n. (Run the
-script once at install to create it.) A changed hash →
-1. Copies `.env` to `data/.env.pending` and from here on works only on that copy, so a
+script once at install to create it.) All of this script's files live in `state/`, a
+host-only folder (mode `700`) that **no container mounts**. They hold `N8N_ENCRYPTION_KEY`
+and the Postgres password, and `data/` is shared with the renderer, which opens outside web
+pages: from `data/` a compromised renderer could read the key, rewrite `.env.live` (e.g.
+`NODE_OPTIONS` → code run inside n8n with every credential) or hold the lock forever.
+A changed hash →
+1. Copies `.env` to `state/.env.pending` and from here on works only on that copy, so a
    save made during the run cannot slip in unchecked; that save gets its own run later.
 2. Validates the copy, and never rewrites a value:
    - `OWNER_EMAIL` is exactly one address, and its domain publishes DMARC
@@ -68,9 +77,11 @@ script once at install to create it.) A changed hash →
    - `CHANNEL_HANDLE` matches `^@[A-Za-z0-9._-]{3,30}$` (with the `@`, no spaces).
    - Every required key is set. Keys with fixed values hold one of them (`PUBLISH_MODE`
      `manual|auto`, `MASTER_EFFORT` `low|medium|high`). Each `LLM_CHAIN_*` is a non-empty
-     comma list of `gemini`, `groq` or `ollama`, each optionally `:<model id>`. `TZ` is
+     comma list of `gemini`, `groq` or `ollama`, each optionally `:<model id>`;
+     `LLM_CHAIN_EDITOR` and `LLM_CHAIN_CUTTER` never name `gemini` (they carry owner
+     notes, and Gemini's free tier may train on prompts, §4). `TZ` is
      a zone in the zoneinfo database. `PUBLISH_TIME` and `SCHEDULE_CANDIDATES` are `HH:MM`.
-   - Keys that a reload cannot apply are unchanged from `data/.env.live`:
+   - Keys that a reload cannot apply are unchanged from `state/.env.live`:
      `N8N_ENCRYPTION_KEY` (a new key makes every stored credential unreadable) and
      `POSTGRES_*` (Postgres keeps the password it was created with). Changing them is a
      manual migration, not a save.
@@ -81,13 +92,13 @@ script once at install to create it.) A changed hash →
 3. Waits until no job is locked (polls Postgres every minute, at most 90 min), so a render
    is not killed halfway. Still busy after 90 min → exits without saving any hash; the
    next run starts over.
-4. Moves the copy over `data/.env.live` (keeping the old one as `data/.env.live.prev`) and
+4. Moves the copy over `state/.env.live` (keeping the old one as `state/.env.live.prev`) and
    runs `docker compose up -d n8n`, which recreates n8n with the new values.
 5. Checks that n8n is healthy again and that `$env` inside it shows the new values; then
-   saves the copy's hash as applied. If not: puts `data/.env.live.prev` back, runs
+   saves the copy's hash as applied. If not: puts `state/.env.live.prev` back, runs
    `up -d n8n` again so the old values are live, sends one macOS notification, and saves
    the hash as rejected (no notification every 60 s; the next save is tried again).
-A lock directory (`mkdir data/.apply-env.lock`, atomic; macOS has no `flock`) keeps two
+A lock directory (`mkdir state/.apply-env.lock`, atomic; macOS has no `flock`) keeps two
 runs from overlapping, and the script removes it on exit (`trap`); a lock older than 2 h
 is from a crashed run and is removed (the longest run waits 90 min).
 
@@ -233,14 +244,18 @@ through its own sub-workflow `sc.ask_master` (§5.1), which calls the Anthropic 
 | 1 | **Scout** | Pick the topic, write the research brief | Gemini Flash → Groq → Ollama | `sc.create` |
 | 2 | **Writer** | Write the script | Gemini Flash → Groq → Ollama | `sc.create`, `sc.revise` |
 | 3 | **Checker** | Fact-check and policy-check every script | Groq → Gemini Flash → Ollama | `sc.create`, `sc.revise`, `sc.render` |
-| 4 | **Editor** | Apply the owner's notes to a script | Gemini Flash → Groq → Ollama | `sc.revise`, `sc.render` |
+| 4 | **Editor** | Apply the owner's notes to a script | Groq → Ollama (never Gemini) | `sc.revise`, `sc.render` |
 | 5 | **Director** | Turn the final script into an edit plan | Ollama → Gemini Flash | `sc.render` |
-| 6 | **Cutter** | Apply the owner's video notes to the edit plan | Ollama → Gemini Flash | `sc.render` |
+| 6 | **Cutter** | Apply the owner's video notes to the edit plan | Ollama → Groq (never Gemini) | `sc.render` |
 | 7 | **Scheduler** | Choose the publish time per weekday that gets the most engagement | Gemini Flash → Groq → Ollama | `sc.schedule` |
 | 8 | **Master** | Supervise: review outputs, handle failures, check every agent daily, diagnose the crew weekly, brief the owner | Claude (`MASTER_MODEL`, Anthropic API), no fallback provider | `sc.create`, `sc.render`, `sc.master`, `sc.diagnose` |
 
 Why this split:
-- Writing quality matters most, so Scout, Writer and Editor use the strongest free model.
+- Writing quality matters most, so Scout and Writer use the strongest free model.
+- Owner notes are private text (a missed signature can carry a name or phone number), and
+  Gemini's free tier may use prompts for training. So the two agents that get them, Editor
+  and Cutter, never use Gemini (`apply-env.sh` refuses a chain that names it, §1). M0
+  confirms Groq's terms do not train on API data; if they do, both chains become Ollama only.
 - The Checker uses a **different model family** from the Writer, so it does not share the
   Writer's blind spots. This holds under fallback too: every Checker call passes the
   provider that wrote the script as `exclude_provider` to `sc.llm` (§10.4), so if the Writer
@@ -290,8 +305,11 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
   ```json
   {"title": "≤ 70 chars", "hook": "...",
    "scenes": [{"id": 1, "narration": "...", "fact_ids": [0, 2], "visual_hint": "..."}],
-   "description": "2–3 lines + sources + #Shorts", "tags": ["..."]}
+   "description": "2–3 lines, no urls", "tags": ["..."]}
   ```
+- **Links are added by code, not the Writer:** code removes any url from `description`
+  and appends the checked source urls (`sc.create` step 5a) and `#Shorts`. A planted page
+  can never put its own link on the channel.
 - **On a Checker flag:** gets the flags and fixes the script once.
 
 ### 4.3 Checker — fact and policy check
@@ -323,7 +341,7 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
                 "query": "stock search words", "text": "card text", "url": "screenshot url"},
      "on_screen_text": "≤ 6 words"}]}
   ```
-- **Rules:** `screenshot` only for `primary_url` (official site or repo), never news sites
+- **Rules:** `screenshot` only for `primary_url` (a GitHub Trending repo, `sc.create` step 5a), never news sites
   (enforced in code: n8n replaces any other screenshot url with a `card`, and the renderer
   checks the url again, §5);
   `card` for numbers, names and lists; `stock` for mood shots; no two `stock` scenes in a row
@@ -478,7 +496,10 @@ mail, healthy or not. It has a *Manual Trigger* too, for testing.
    agent (status, score, fixtures passed per provider, best provider, local/free + link);
    tested candidates with their results and the exact `.env` line to switch
    (e.g. `LLM_CHAIN_CHECKER=groq:<model id>,gemini,ollama`); untested suggestions; Master
-   cost. Saved to `master_log` (`diagnose_tests`, `diagnose_research`, `diagnose_grade`) for
+   cost. **The `.env` line is built by code** from the agent name, the verified candidate
+   id (step 4) and the current chain, never copied from Master text, so a planted page
+   cannot hand the owner a line to paste. Every `source_url` whose host is not in
+   `DIAG_WEB_DOMAINS` (§5.1) is dropped, and all Master text is HTML-escaped (§10.3). Saved to `master_log` (`diagnose_tests`, `diagnose_research`, `diagnose_grade`) for
    next week's comparison.
 
 - **It only reports.** It never changes a chain, model, prompt or setting. The owner pastes
@@ -498,7 +519,7 @@ mail, healthy or not. It has a *Manual Trigger* too, for testing.
   {"agents": [{"agent": "writer", "status": "good|weak|failing", "score": 8,
                "best_provider": "gemini", "notes": "..."}],
    "candidates": [{"model": "groq:<id>", "agent": "checker", "better": true,
-                   "evidence": "caught 3/3 planted errors vs 2/3", "env_line": "LLM_CHAIN_CHECKER=..."}],
+                   "evidence": "caught 3/3 planted errors vs 2/3"}],
    "report": "plain text summary"}
   ```
 - **Cost:** 2 Master calls a week, ≤ 10 web searches ($10 per 1 000) and fetched pages
@@ -528,18 +549,36 @@ contact_sheet}` (synchronous, ≤ 10 min). `transcript` is the whisper word list
      DNS rebinding (public address for the check, private one for the connection) cannot
      get through. A failed check on the page url → that scene becomes a `card` and a
      warning is returned; a failed sub-request is simply refused.
+     Chromium **bypasses a proxy for loopback by default**, so a page's script could call
+     the renderer's own API at `127.0.0.1:8000` directly. Chromium therefore also gets
+     `--proxy-bypass-list="<-loopback>"` (loopback goes through the proxy too, which refuses
+     it), `--disable-quic` and `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`
+     (no traffic around the proxy), and keeps its sandbox on.
+     The proxy also serves n8n's source fetches (`sc.create` step 6): it listens on
+     `0.0.0.0:8899` inside the Docker network (no published port), and closes any
+     connection after 20 MB or 60 s.
 4. **Captions:** word-by-word highlighted ASS subtitles, burned in.
 5. **Music:** a random track of `music_mood`, ducked under the voice (sidechain).
 6. **Encode:** 1080×1920, 30 fps, H.264 CRF 18 (max 10 Mbps), AAC 192 kbps, loudness −14 LUFS.
 7. **Checks before returning:** duration 20–60 s, has audio and video streams, loudness in
    range, size < 200 MB. Failing a check is an error, not a warning.
 
+**Input check (trust boundary: the plan is model output):** `job_id` must match
+`^SC-\d{4,}$` (it becomes a path); `music_mood` must be the name of a folder in
+`assets/music/`, `voice` one of Kokoro's voices, `speed` within 0.8–1.3; anything else →
+`422`, nothing rendered. Plan text (narration, card text, on-screen text, queries) is never
+put into a shell command or an ffmpeg filter string: it goes into files (ASS subtitles,
+Pillow images) or argument lists, and ASS override tags (`{…}`) are removed from it.
+
 Other endpoints: `GET /health`, `DELETE /jobs/{id}` (removes local files), `POST /cache/prune`.
 Tests: `renderer/tests/` renders a 2-scene fixture plan offline (fixture clip + fixture WAV)
 and asserts duration, streams and loudness; a url-check test asserts that `http://…`,
 `https://n8n:5678`, `https://10.0.0.1`, `https://localhost` and a host that resolves to a
 private address are all refused; a rebinding test (a stub resolver that gives a public
-address first and `127.0.0.1` after) asserts the proxy never connects to `127.0.0.1`.
+address first and `127.0.0.1` after) asserts the proxy never connects to `127.0.0.1`; a
+loopback test (a fixture page whose script fetches `http://127.0.0.1:8000/health` and
+`POST /cache/prune`) asserts both are refused; an input test asserts that `job_id`
+`../x`, `music_mood` `../../data` and an unknown voice each give `422`.
 
 Brand assets (font, colours, card template, outro frame) live in `assets/brand/`.
 Music: tracks downloaded once by hand from the YouTube Audio Library into
@@ -798,7 +837,7 @@ Port `127.0.0.1:5678:5678`: bound to localhost only.
 | `Gmail Bot` | Gmail OAuth2 | Bot | Gmail nodes (`sc.inbox` search, `sc.mail` send) |
 | `Drive Bot` | Google Drive OAuth2 | Bot | Google Drive nodes |
 | `YouTube Channel` | YouTube OAuth2 | Channel owner | YouTube node, HTTP Request (predefined credential) |
-| `SC Postgres` | Postgres | db `shortcircuit` | Postgres nodes |
+| `SC Postgres` | Postgres | db `shortcircuit`, role `sc_app` (made by `db/init.sql`: not a superuser, rights only on that database's tables, so no `COPY … PROGRAM` or file access) | Postgres nodes |
 | `Gemini` | Header Auth (`Authorization: Bearer <key>`) | Bot's Google AI Studio key | `sc.llm` |
 | `Groq` | Header Auth | Groq key | `sc.llm` |
 | `Anthropic` | Header Auth (`x-api-key: <key>`) | Claude Console API key | `sc.ask_master` |
@@ -851,6 +890,13 @@ credentials: the renderer holds the Pexels key in its own env.
   mail the owner actually got. Worst case: a mail sent twice, never an action the owner
   could not see.
 - **No secrets in workflows:** keys only in credentials, settings only in `$env`.
+- **SQL:** every value goes in as a query parameter (`$1`, `$2`, …), never pasted into the
+  query text: mail text, notes, model output and the job id parsed from a subject included.
+- **Mail HTML:** every value from web text, model output or mail (titles, scripts, sources,
+  notes, Master text, error messages, a sender address) is HTML-escaped when the `outbox`
+  or `{subject, html}` is built. Links are written by code only, from checked `https` urls
+  and Drive links. Model text can never add a link, a button or hidden text to a bot mail
+  the owner trusts.
 
 ### 10.4 `sc.llm` — the shared model call (sub-workflow)
 
@@ -904,7 +950,7 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 | `sc.master` | Every 5 min + daily 21:00 | `triage` (own pick, no attempts) | Master | `triage_from`, `revising`, `video_editing`, `rejected`, `failed` |
 | `sc.schedule` | Sunday 04:00 | — | Scheduler | — (writes `schedule`) |
 | `sc.diagnose` | Sunday 05:00 + Manual | — | all workers (fixtures), Master | — (writes `master_log`, mails the report) |
-| `sc.publish` | Every 15 min | `approved`, cancelled-with-upload | — | `scheduled` / `awaiting_upload` |
+| `sc.publish` | Every 15 min | `approved`, cancelled/rejected-with-upload | — | `scheduled` / `awaiting_upload` |
 | `sc.livecheck` | Every hour | `awaiting_upload`, `scheduled`, `live` | — | `scheduled`, `live`, `done`, `cancelled`; saves `metrics` |
 | `sc.housekeeping` | Sunday 03:00 | — | — | — |
 | `sc.alert` | Called | — | — | — |
@@ -936,11 +982,21 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 5. `sc.llm` **Scout rank** → chosen item + 2–4 source urls.
 5a. Code — **url check (trust boundary: urls come from model output):** keep a source url
     only if it is `https`, has a dotted hostname that is not an IP literal, and is one of the
-    candidate urls from step 3 (the Scout may not invent urls). Fewer than 2 left → error
-    (fail branch). `primary_url` is kept only if its hostname is a source's hostname or
-    `github.com`; otherwise it is set to `null` (no screenshot; the renderer checks again, §5).
-6. HTTP Request per source url → HTML node (extract `article`/`main` text) → Code: trim to
-   ~3 000 words each.
+    candidate urls from step 3 (the Scout may not invent urls). Fewer than 2 left, **or none
+    of them from an RSS feed or GitHub Trending** → error (fail branch): anyone can post a
+    link to HN or Reddit, so one person must not be able to supply both "independent"
+    sources. `primary_url` is kept only if it is a `github.com` url that is itself a
+    GitHub Trending candidate from step 3 (a single poster cannot plant one there);
+    otherwise it is set to `null` (no screenshot, the scene is a `card`; the renderer checks
+    again, §5). Official sites known only from HN or Reddit links are never screenshotted,
+    because any such page may be planted and would then appear in the video.
+6. HTTP Request per source url, **through the renderer's checking proxy** (node option
+   *Proxy* = `http://renderer:8899`, §5; timeout 30 s) → HTML node (extract
+   `article`/`main` text) → Code: trim to ~3 000 words each. Without the proxy, a link to
+   `host.docker.internal` (it has a dot) or a public page that redirects to
+   `http://postgres:5432` or `http://host.docker.internal:11434` would be fetched from inside
+   the Docker network and its answer would land in the brief. The proxy checks every
+   address, every redirect included, and caps each response at 20 MB.
 7. `sc.llm` **Scout brief** → brief.
 8. `sc.llm` **Writer** → script.
 9. `sc.llm` **Checker** (`exclude_provider` = the Writer's provider) → If fail: `sc.llm`
@@ -959,8 +1015,10 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
    *Simplify* off (full body needed). Not the Gmail Trigger: its cursor moves on even when
    the run fails, which would lose that reply. Here a mail stays in the query until step 6
    labels it, so a failed run is simply retried the next minute.
-2. Code: check the sender address matches `OWNER_EMAIL` exactly (filter alone is not
-   trusted) **and** that the `Authentication-Results` header Gmail added shows
+2. Code: the `From` header must hold exactly one address. Take its address part (the text in
+   `<…>`, or the whole value if there are none), never the display name: in
+   `"owner@gmail.com" <x@evil.com>` the address is `x@evil.com`. Check that this address
+   matches `OWNER_EMAIL` exactly (filter alone is not trusted) **and** that the `Authentication-Results` header Gmail added shows
    `dmarc=pass` with `header.from` equal to the domain of `OWNER_EMAIL` (DMARC pass already
    means an aligned DKIM or SPF pass, so a spoofed From fails it while real mail from
    gmail.com or a custom domain with DMARC passes). Only the **top** `Authentication-Results`
@@ -973,6 +1031,12 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
    `Sent from my …`); trim. Nothing left → label `sc/ignored`, stop (an empty reply is not a
    change request). First word, upper-cased with trailing punctuation removed (`approve.` =
    `APPROVE`) → command; rest → notes.
+   **No reply is ignored silently.** Silence approves, so an owner `CANCEL` that fails a
+   check here (a From written in another case, a DMARC failure, a reply that is all quote)
+   would otherwise be lost while the video publishes. Every `sc/ignored` in steps 2–3 also
+   calls `sc.alert` (`reply_ignored:SC-0042`, at most one a day per job): "A mail about
+   SC-0042 from <address> was ignored: <reason>. If it was yours, send the command again as
+   the first word of a new reply." (Address and reason HTML-escaped, §10.3.)
 3. Postgres: the job id must exist (`SC-9999` with no job → label `sc/ignored`, stop).
    Then steps 3–4 run in **one transaction** (Postgres node, *Query Batching: Transaction*),
    so a crash can never record a reply without applying it: insert into `replies`
@@ -1026,7 +1090,8 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 7. HTTP Request `DELETE renderer:8000/jobs/SC-0042`.
 8. Only if `slot_date` is empty — Postgres: assign slot (earliest free day whose `schedule`
    time is ≥ now + 48 h; set `slot_at` and `slot_date`; the `UNIQUE` constraint plus a retry
-   handles a race).
+   handles a race). The update is guarded `AND status IN ('script_approved',
+   'video_editing')`, so a job cancelled or rejected during the render never books a day.
 9. Postgres (finish): status `video_review` (deadline now + 12 h) or `approved` (after an
    edit); `outbox` = the mail (Drive link, slot time, script, or the `Updated video` note).
 10. `sc.mail` (job id).
@@ -1061,8 +1126,15 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
   the node lacks, like `containsSyntheticMedia`, are set by an HTTP Request `videos.update`
   with the `YouTube Channel` credential) → Code: the upload response's
   `snippet.channelId` must equal `sc.channel`'s `channel_id` (else `ALERT`
-  `channel_mismatch`, job to fail branch) → save `youtube_id` and `channel_id` → `scheduled`.
-  `cancelled` with a `youtube_id` → `sc.channel` → `videos.list?id=<youtube_id>` and check its
+  `channel_mismatch`, job to fail branch) → Postgres `UPDATE jobs SET youtube_id = $y,
+  channel_id = $c WHERE id = $id` with **no status guard**, then the normal guarded finish
+  → `scheduled`. A `CANCEL` that arrived during the upload has already set `cancelled`, so
+  the guarded finish matches no row; because `youtube_id` is saved anyway, the
+  `cancelled`-with-`youtube_id` path below deletes the video on the next run instead of
+  leaving it scheduled to publish. A claimed `approved` job that already has a `youtube_id`
+  (an upload whose save was lost in a crash, found again by `sc.livecheck`) is not uploaded
+  again: it goes straight to `scheduled`.
+  `cancelled` or `rejected` with a `youtube_id` → `sc.channel` → `videos.list?id=<youtube_id>` and check its
   `snippet.channelId` is that channel → YouTube **Delete** → clear `youtube_id`. A video on
   any other channel is never updated or deleted: if the job's `channel_id` is an older
   channel, `sc.alert` (`cancel_old_channel:SC-0042`, "delete it in Studio on the old
@@ -1086,6 +1158,11 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 4. Postgres updates:
    - `awaiting_upload` found with a `publishAt` → `scheduled`, save `youtube_id` and
      `channel_id`.
+   - A video tagged for a job that has no `youtube_id` in any other state (an upload whose
+     save was lost, or a `cancelled`/`rejected` job the video was uploaded for anyway) →
+     save `youtube_id` and `channel_id` (no status change). In `auto` mode `sc.publish`
+     then deletes it if the job is `cancelled` or `rejected`; in `manual` mode `sc.alert`
+     (`cancel_in_studio:SC-0042`, "delete it in Studio").
    - `scheduled` and now `public` → `live`.
    - `scheduled` but not in the list → `videos.list?id=<youtube_id>` (1 unit) to confirm;
      only a successful reply with no `items` means it was deleted → `cancelled`, slot
@@ -1169,6 +1246,9 @@ or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
 1. Execute Workflow Trigger.
 2. Code: `OWNER_EMAIL` must be set and look like one address (no `,` or `;`); else throw
    (nothing is sent). With `job_id`: load the job; `outbox` empty → stop.
+   Subject: every CR, LF and other control character is replaced by a space, and it is cut
+   to 200 characters. Subjects carry model and error text (titles, `NEEDS YOU: <reason>`,
+   `ALERT: …`), and a line break there could start a new mail header such as `Bcc:`.
 3. Gmail **Send** (`Gmail Bot`): To = `{{$env.OWNER_EMAIL}}` (fixed in the node, no CC/BCC),
    subject and HTML from step 2. Every job mail keeps the `[SC-0042]` prefix, so Gmail
    groups them; exact threading is cosmetic and nothing depends on it.
@@ -1225,7 +1305,7 @@ changed is one Postgres read and costs no API calls) and by hand.
 # docker-compose.yml (outline)
 services:
   postgres:  { image: postgres:16, volumes: [pg:/var/lib/postgresql/data, ./db:/docker-entrypoint-initdb.d] }
-  n8n:       { image: n8nio/n8n:<pinned>, ports: ["127.0.0.1:5678:5678"], volumes: [n8n_home:/home/node/.n8n, ./data:/data], env_file: ./data/.env.live, depends_on: [postgres] }  # checked copy of .env, written only by apply-env.sh
+  n8n:       { image: n8nio/n8n:<pinned>, ports: ["127.0.0.1:5678:5678"], volumes: [n8n_home:/home/node/.n8n, ./data:/data], env_file: ./state/.env.live, depends_on: [postgres] }  # checked copy of .env, written only by apply-env.sh; compose reads it on the host, no container mounts state/
   kokoro:    { image: ghcr.io/remsky/kokoro-fastapi-cpu:<pinned> }
   renderer:  { build: ./renderer, volumes: [./data:/data, ./assets:/assets:ro], env_file: renderer.env }
 # every service: restart: unless-stopped, plus a healthcheck
@@ -1235,7 +1315,10 @@ The renderer has its own `renderer.env` (only `PEXELS_API_KEY` and the Kokoro ur
 change to `.env` recreates n8n alone and never kills a render in progress.
 
 - **Ollama runs natively** (Docker on macOS cannot use the GPU), set to start at login.
-  n8n reaches it at `host.docker.internal:11434`.
+  n8n reaches it at `host.docker.internal:11434`. Ollama stays bound to `127.0.0.1` (its
+  default; Docker Desktop forwards `host.docker.internal` to the Mac's loopback). Never set
+  `OLLAMA_HOST=0.0.0.0`: Ollama has no auth, so anyone on the LAN could run, pull or
+  delete models. M0 checks `curl http://<Mac's LAN IP>:11434` from another device fails.
 - **Memory:** Docker Desktop limit 6 GB (renderer + Kokoro + n8n + Postgres; the Master
   runs in Anthropic's cloud); Ollama 8B ≈ 6 GB
   while loaded and unloads after 10 min, and `sc.render` unloads it before every render
@@ -1246,7 +1329,7 @@ change to `.env` recreates n8n alone and never kills a render in progress.
 - **`.env` watcher (`launchd` → `scripts/apply-env.sh`):** `WatchPaths` on `.env` plus
   `StartInterval` 60 s; acts only when the file's hash changed; validates a snapshot (values,
   DMARC, no change to `N8N_ENCRYPTION_KEY` or `POSTGRES_*`), waits for unlocked jobs, makes
-  the snapshot `data/.env.live`, recreates n8n, checks it came back with the new values, and
+  the snapshot `state/.env.live`, recreates n8n, checks it came back with the new values, and
   rolls back if not (§1).
 - **Nothing public:** n8n binds to localhost; it only polls Gmail and calls APIs out.
   No webhooks, no tunnel, no open ports.
@@ -1293,9 +1376,12 @@ workflows/          sc.*.json (exported, committed)
 assets/brand/       font, colours, card template, outro
 assets/music/<mood>/
 scripts/            backup.sh, restore.sh, export-workflows.sh, import-workflows.sh,
-                    check-workflows.sh (Gmail send only in sc.mail, YouTube writes only in sc.publish),
+                    check-workflows.sh (Gmail send only in sc.mail, YouTube writes only in sc.publish,
+                    Drive shares only in sc.config; HTTP Request nodes with those credentials included),
                     apply-env.sh + launchd/com.shortcircuit.apply-env.plist (§1)
 data/  backups/     git-ignored
+state/              git-ignored, host-only (mode 700, never mounted): .env.live, .env.pending, hashes, lock (§1)
+.env  renderer.env  git-ignored (secrets; only the *.example files are committed)
 docs/PLAN.md
 ```
 
@@ -1305,16 +1391,16 @@ Each milestone ends with a check that can be seen working.
 
 | # | Build | Done when |
 |---|---|---|
-| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed; saving `.env` with a bad `OWNER_EMAIL`, an owner domain without DMARC, `PUBLISH_MODE=Auto`, an `LLM_CHAIN_*` naming an unknown provider, or a changed `N8N_ENCRYPTION_KEY` gives one notification (not one a minute) and leaves n8n untouched; a second save made while a run waits for a locked job is not applied by that run, but by the next one after its own check; a good change saved from the editor actually used (and one written with `mv` over the file) is applied within 2 min; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id |
-| M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert`, `sc.mail` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled; `exclude_provider` skips that provider; `sc.mail` delivers to `OWNER_EMAIL` and throws (sends nothing) with `OWNER_EMAIL` empty or holding two addresses |
-| M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human`; a Scout output with an invented url or a `primary_url` on an unrelated host is cut by the url check |
-| M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored, and so is one carrying its own forged `dmarc=pass` header below Gmail's; a reply whose `sc.inbox` run fails (Postgres stopped) is applied the next minute after Postgres is back; an empty reply, a signature-only reply and a reply to `SC-9999` are ignored; `approve.` works as `APPROVE`; a 4th change request mails `NEEDS YOU: 3 rounds used`; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
-| M4 | renderer | Renderer tests pass (url-check and DNS-rebinding tests included); `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
+| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed; saving `.env` with a bad `OWNER_EMAIL`, an owner domain without DMARC, `PUBLISH_MODE=Auto`, an `LLM_CHAIN_*` naming an unknown provider, an `LLM_CHAIN_EDITOR` or `LLM_CHAIN_CUTTER` naming `gemini`, or a changed `N8N_ENCRYPTION_KEY` gives one notification (not one a minute) and leaves n8n untouched; a second save made while a run waits for a locked job is not applied by that run, but by the next one after its own check; a good change saved from the editor actually used (and one written with `mv` over the file) is applied within 2 min; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id; `docker compose exec renderer ls /data` and the same in n8n show no `.env*` file (`state/` is not mounted); Ollama does not answer on the Mac's LAN IP; Groq's terms checked for training on API data (§4); `git status` with `.env` and `renderer.env` present shows neither |
+| M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert`, `sc.mail` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled; `exclude_provider` skips that provider; `sc.mail` delivers to `OWNER_EMAIL` and throws (sends nothing) with `OWNER_EMAIL` empty or holding two addresses; a subject holding `\r\nBcc: x@y` arrives as one line and only `OWNER_EMAIL` receives it; a title holding `<a href=…>` shows as text, not a link; the `SC Postgres` role cannot run `COPY … PROGRAM` |
+| M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human`; a Scout output with an invented url or a `primary_url` on an unrelated host is cut by the url check; a Scout pick whose sources are all HN/Reddit links fails; a `primary_url` on a host known only from an HN link gets no screenshot; a source url to `https://host.docker.internal/…` and one that redirects to `http://postgres:5432` are refused by the proxy (nothing from them in the brief); a description in which the Writer put its own url is published with that url removed |
+| M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored, and so is one carrying its own forged `dmarc=pass` header below Gmail's; a reply whose `sc.inbox` run fails (Postgres stopped) is applied the next minute after Postgres is back; an empty reply, a signature-only reply and a reply to `SC-9999` are ignored; `approve.` works as `APPROVE`; a 4th change request mails `NEEDS YOU: 3 rounds used`; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node, an HTTP Request node with the `Gmail Bot` credential, a non-GET HTTP Request with the `YouTube Channel` credential or a Drive share node is added to another workflow; a mail with From `"OWNER_EMAIL" <x@evil.com>` and one with two From addresses are ignored; every ignored `[SC-…]` mail (DMARC fail, all-quote reply, `SC-9999`) gives one `reply_ignored` alert, not one per minute |
+| M4 | renderer | Renderer tests pass (url-check, DNS-rebinding, loopback and input tests included); `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
 | M5 | `sc.render` | Video on Drive, local copy gone, slot assigned, mail with link; a video note re-renders into the same Drive file; `APPROVE` + notes on a video re-renders and goes `approved`; Ollama is unloaded during the render (`ollama ps` empty) and stays unloaded when `sc.create` runs a call with Ollama in its chain during the render; a narration note on a video that the Checker flags goes `needs_human` and keeps its slot |
-| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with the YouTube API returning errors (bad token) `sc.livecheck` changes no job; a job set to `failed` frees its slot and raises no `slot_missed`; in `auto`, a job approved after its `slot_at` is uploaded `public` at once; an `OWNER_EMAIL` without a Google account gets the note even if the Drive share fails (`drive_share_failed` alert); with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job; **change test:** save a new `OWNER_EMAIL` in `.env` (no other step) while a render runs → n8n is recreated only after the render's job unlocks; the new address gets the note and Drive access (first `sc.config` run on an empty `config_seen` shares the folder by itself), the old one loses it, the next review mail goes to the new address and a reply from the old one is ignored; new `CHANNEL_HANDLE` alone → `channel_mismatch` alert, nothing uploaded; then re-connect the credential (no restart) → within an hour `sc.config` re-sends waiting packs and the next upload lands on the new channel, a video already scheduled on the old channel stays there and its job ends `done`, not `cancelled` |
+| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with the YouTube API returning errors (bad token) `sc.livecheck` changes no job; a job set to `failed` frees its slot and raises no `slot_missed`; in `auto`, a job approved after its `slot_at` is uploaded `public` at once; an `OWNER_EMAIL` without a Google account gets the note even if the Drive share fails (`drive_share_failed` alert); with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job; **change test:** save a new `OWNER_EMAIL` in `.env` (no other step) while a render runs → n8n is recreated only after the render's job unlocks; the new address gets the note and Drive access (first `sc.config` run on an empty `config_seen` shares the folder by itself), the old one loses it, the next review mail goes to the new address and a reply from the old one is ignored; new `CHANNEL_HANDLE` alone → `channel_mismatch` alert, nothing uploaded; then re-connect the credential (no restart) → within an hour `sc.config` re-sends waiting packs and the next upload lands on the new channel, a video already scheduled on the old channel stays there and its job ends `done`, not `cancelled`; **cancel race:** `CANCEL` sent while `sc.publish` is uploading (`auto`) → the video is deleted on the next run, not published; an upload whose `youtube_id` save is lost (Postgres stopped right after the upload) is found by `sc.livecheck` and not uploaded twice; a job cancelled during its render books no slot |
 | M7 | `sc.ask_master`, `sc.master` | `sc.ask_master.test` passes; a weak fixture script gets `redo` and is rewritten once; a forced render error goes `triage` → `retry` → success; a step that keeps failing ends `failed` + `ALERT` with the diagnosis; a third intervention is refused (in triage and in the daily review), and the daily review never acts on a `failed` job; with the `Anthropic` credential set to a bad key the pipeline still runs (reviews logged as skipped, `triage` jobs keep `triage_from`, keep `attempts = 0` and go `failed` 6 h after `triage_at`); the brief arrives only on a day with actions |
 | M8 | `sc.schedule`, metrics | `metrics` rows appear at 24 h / 48 h / 7 d for live videos; with < 12 videos the slots rotate; with fixture metrics `sc.schedule` writes a valid week, changes ≤ 2 days and never moves an assigned slot |
-| M9 | `sc.diagnose`, `tests/agents/` | Manual run mails a report with every agent × provider tested; a fixture with a planted bad fact fails a weakened Checker prompt; a fake candidate id is never called; setting one chain to a paid model puts the warning in the first line; with a bad `Anthropic` key the report still arrives with code results only |
+| M9 | `sc.diagnose`, `tests/agents/` | Manual run mails a report with every agent × provider tested; a fixture with a planted bad fact fails a weakened Checker prompt; a fake candidate id is never called; setting one chain to a paid model puts the warning in the first line; with a bad `Anthropic` key the report still arrives with code results only; a fixture Master reply with its own `env_line` text and a `source_url` off `DIAG_WEB_DOMAINS` → the report shows the code-built line only and drops that link |
 | M10 | Hardening | Pull the network, kill containers, reboot the Mac mid-render: every job recovers, no job is rendered twice. A render that runs past 80 min is killed and its job claimed again after 90 min. Backup restore works. **7-day dry run** on a separate test channel (`CHANNEL_HANDLE` = the test channel's handle) with 1-hour timeouts |
 | M11 | Go live | Switch the `YouTube Channel` credential and `CHANNEL_HANDLE` to the real channel together (either one alone is refused by `sc.channel`). After the audit passes: `PUBLISH_MODE=auto`, watch 3 days |
 
@@ -1323,22 +1409,22 @@ Each milestone ends with a check that can be seen working.
 | Risk | What we do |
 |---|---|
 | YouTube audit refused or slow | Stay in `manual` mode (≈ 5 min every 3 days). Everything else stays automatic |
-| Wrong facts published unseen | Sourced-facts-only writing, a separate-model Checker, auto-approve only on a clean check, sources in every description, `CANCEL` any time before the slot |
+| Wrong facts or planted content published unseen | At least one source from an RSS feed or GitHub Trending (not only HN/Reddit links anyone can post); screenshots only of GitHub Trending repos; description links added by code from checked sources; bot mails HTML-escaped; sourced-facts-only writing, a separate-model Checker, auto-approve only on a clean check, sources in every description, `CANCEL` any time before the slot |
 | Free-tier limits or model names change | Three-provider chain per agent; models set in `.env`; daily limits checked at M0 (≥ 60 a day needed) and weekly in the diagnosis; a daily-quota 429 moves the chain to the next provider, Ollama last. Reported Gemini Flash free limits have been cut sharply before, so this is a real risk, not a theoretical one |
-| Mail sent to the wrong person | One Gmail Send node in the whole system (`sc.mail`), recipient fixed to `OWNER_EMAIL`, no recipient input; `check-workflows.sh` blocks any other send node |
+| Mail sent to the wrong person | One Gmail Send node in the whole system (`sc.mail`), recipient fixed to `OWNER_EMAIL`, no recipient input; `check-workflows.sh` blocks any other send node, and any HTTP Request node with the Gmail credential; CR/LF stripped from subjects, so no header (`Bcc:`) can be added |
 | Video uploaded to the wrong channel | `sc.channel` checks the credential's channel against `CHANNEL_HANDLE` before every write and checks each upload's `channelId`; videos on other channels are never updated or deleted |
-| A planted url (in a news page or model output) used to reach the Mac's own services | Scout urls must be from the candidate list; screenshot urls checked in n8n and again in the renderer (https, public addresses only, every Playwright request checked) |
-| Gemini free tier may use prompts for training | Only public news text goes in; no private data |
+| A planted url (in a news page or model output) used to reach the Mac's own services | Scout urls must be from the candidate list; source fetches go through the renderer's checking proxy (every address and redirect checked); screenshot urls checked in n8n and again in the renderer (https, public addresses only, every Playwright request checked, loopback not bypassed); `.env` copies and the key live in host-only `state/`, never in a mounted folder |
+| Gemini free tier may use prompts for training | Only public news text goes to Gemini; owner notes go only to Groq and Ollama (Editor, Cutter chains; `apply-env.sh` refuses `gemini` there) |
 | Topics stale by publish day | 7-day shelf-life rule in Scout |
 | Monetization refused as "inauthentic content" | One sourced idea per video, varied visuals, human review possible; channel still works without monetization |
 | Copyright | Pexels, own cards, screenshots of official pages only, Audio Library music |
-| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` for its domain in the top `Authentication-Results` header from `mx.google.com` (a forged From or a forged lower header fails this); commands parsed in code; mail text reaches agents only as tagged data |
-| `.env` edited but the change not loaded, or a typo in it | `launchd` runs `apply-env.sh` on every save and every 60 s (hash compare, so an editor's rename-save is never missed): validates a snapshot first (values, allowed values, chains, DMARC; a bad value never reaches n8n, which reads only the checked `data/.env.live`); refuses changes to `N8N_ENCRYPTION_KEY` and `POSTGRES_*`; a save during the wait gets its own run; a failed reload rolls back to the old values; one macOS notification per bad save |
+| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` for its domain in the top `Authentication-Results` header from `mx.google.com` (a forged From or a forged lower header fails this); the address part of a single `From` is compared, never the display name; commands parsed in code; mail text reaches agents only as tagged data; an ignored `[SC-…]` mail raises `reply_ignored`, so a lost `CANCEL` is never silent |
+| `.env` edited but the change not loaded, or a typo in it | `launchd` runs `apply-env.sh` on every save and every 60 s (hash compare, so an editor's rename-save is never missed): validates a snapshot first (values, allowed values, chains, DMARC; a bad value never reaches n8n, which reads only the checked `state/.env.live`); refuses changes to `N8N_ENCRYPTION_KEY` and `POSTGRES_*`; a save during the wait gets its own run; a failed reload rolls back to the old values; one macOS notification per bad save |
 | Mac failure | 3-day buffer; nightly backups; whole stack restores from git + `backups/` |
 | Google OAuth token revoked | Steps fail → jobs reach `triage`/`failed` and `sc.error` sends `workflow_failing` → `ALERT` within the hour. If the Gmail token itself is revoked no mail can go out: `sc.alert` also writes the alert to `alerts` and the n8n execution log, the job states stop advancing, and the Master brief (once mail works again) lists what happened |
 | Anthropic API down, spend limit hit or key revoked | The Master is optional: without it reviews are skipped and failures go to `failed` + `ALERT` as before; `master_down` alert after 24 h. Spend limit in the Console caps the bill |
 | Master overreach or a bad Master call | Fixed action list applied by guarded SQL; JSON schema on every reply (checked in code for `diagnose_research`); no tools except read-only web search/fetch in the weekly research, so no database, mail, YouTube, file or shell access; cannot pass a Checker fail or undo an owner command; max 2 interventions per job; every decision logged and in the brief |
-| A web page plants instructions or a fake model in the diagnosis research | Fixed domain list; pages are data in the prompt; the output can only become report text; candidate ids are called only if the provider's own model list has them; the diagnosis changes nothing by itself |
+| A web page plants instructions or a fake model in the diagnosis research | Fixed domain list; pages are data in the prompt; the output can only become report text; candidate ids are called only if the provider's own model list has them; the `.env` line in the report is built by code, links off the domain list dropped; the diagnosis changes nothing by itself |
 | A free tier ends or turns paid without notice | Weekly local-or-free check (§4.9) warns in the report's first line; the chain falls back to Ollama if a provider starts refusing |
 | Publish time barely matters for Shorts | Scheduler changes ≤ 2 days a week, needs ≥ 5 videos per time to act, reports low confidence; worst case it keeps the default time |
 
