@@ -8,7 +8,7 @@ At least 3 finished videos are always scheduled ahead, so a skipped review, a bu
 a Mac outage never breaks the daily schedule.
 
 Every worker model is local (Ollama) or a free API tier. The Master is Claude, called by n8n
-directly through the Anthropic API (≈ $8–19 a month, §4.8). Apart from that, the only extra
+directly through the Anthropic API (≈ $10–25 a month, §4.8). Apart from that, the only extra
 cost is electricity. Every week the Master tests every worker, looks for better local or free
 models, checks that every worker model is still local or free, and mails a report (§4.9).
 
@@ -22,11 +22,23 @@ Job ids look like `SC-0042` and appear in every mail subject.
 |---|---|---|
 | **Owner** (`OWNER_EMAIL`) | The user's personal Gmail | Receives review mails, replies to them |
 | **Bot** (`BOT_EMAIL`) | A new free Gmail account made for ShortCircuit | Sends all mails, reads replies, stores videos in its Drive |
-| **Channel** | The YouTube channel (owned by the Owner or a Brand Account) | Upload, status and view-count checks |
+| **Channel** (`CHANNEL_HANDLE`, e.g. `@shortcircuittech`) | The YouTube channel (owned by the Owner or a Brand Account) | Upload, status and view-count checks |
 | **Anthropic API** | A Claude Console account with an API key, pay as you go | The Master AI (§4.8), called by n8n |
 
 A Claude Pro/Max subscription cannot be used here: it has no API key. The Console account
-gets a monthly spend limit (e.g. $25) so a loop can never run up a bill.
+gets a monthly spend limit (e.g. $40) so a loop can never run up a bill.
+
+**Two fixed targets, set in `.env` and enforced in code:**
+- **Mail goes only to `OWNER_EMAIL`.** One sub-workflow, `sc.mail` (§10.6), holds the only
+  Gmail Send node. Its recipient is the expression `{{$env.OWNER_EMAIL}}`; it has no `to`,
+  `cc` or `bcc` input, so no caller, prompt or mail text can choose a recipient.
+  `scripts/check-workflows.sh` fails if any other exported workflow contains a Gmail
+  send or reply node (run before every commit and at M3).
+- **Videos go only to the channel of `CHANNEL_HANDLE`.** Before any YouTube write (upload,
+  update, delete) and before `sc.livecheck` changes a job, the sub-workflow `sc.channel`
+  (§10.6) checks that the OAuth credential's channel is that handle's channel. On a
+  mismatch nothing is written and an `ALERT` is sent. `scripts/check-workflows.sh` also fails
+  if a YouTube write node appears outside `sc.publish`.
 
 Why a separate bot account: if the pipeline sent mail from the owner's own address, its own
 outgoing mails would look exactly like owner replies and the inbox router would act on them.
@@ -57,7 +69,7 @@ Only mail from `OWNER_EMAIL` with `[SC-####]` in the subject is read. The first 
 
 | First word | On a script | On a video |
 |---|---|---|
-| `APPROVE` | Approve now. Text after it = notes, applied before rendering | Approve now. Text after it = notes, applied before publishing |
+| `APPROVE` | Approve now. Text after it = notes, applied before rendering | Approve now. Text after it = notes → re-render in the same slot, then approved without a new review (`Updated video` mail) |
 | `REJECT` | Drop the job. A new one starts | Drop the job, free its slot |
 | `CANCEL` | Same as `REJECT` | Pull it, even after it is scheduled (see §8) |
 | anything else | Change request → revised script mailed again, new 12 h timeout (max 3 rounds) | Change request → re-render, same slot, `Updated video` mail |
@@ -115,8 +127,9 @@ stateDiagram-v2
     revising --> needs_human: Revise (flagged or round > 3)
     script_review --> script_approved: APPROVE or 12 h
     needs_human --> script_approved: APPROVE
+    script_approved --> needs_human: Render (owner notes flagged)
     script_approved --> video_review: Render (slot assigned)
-    video_review --> video_editing: change request
+    video_review --> video_editing: change request or APPROVE + notes
     video_editing --> approved: Render (re-render)
     video_review --> approved: APPROVE or 12 h
     approved --> scheduled: Publish (auto)
@@ -129,6 +142,7 @@ stateDiagram-v2
     triage --> video_editing: Master redo (video)
     triage --> rejected: Master reject
     triage --> failed: Master fail, or 6 h
+    note right of triage : Master retry returns the job to the state saved in triage_from
     done --> [*]
 ```
 
@@ -159,7 +173,9 @@ through its own sub-workflow `sc.ask_master` (§5.1), which calls the Anthropic 
 Why this split:
 - Writing quality matters most, so Scout, Writer and Editor use the strongest free model.
 - The Checker uses a **different model family** from the Writer, so it does not share the
-  Writer's blind spots.
+  Writer's blind spots. This holds under fallback too: every Checker call passes the
+  provider that wrote the script as `exclude_provider` to `sc.llm` (§10.4), so if the Writer
+  fell back to Groq, the Checker skips Groq.
 - Director and Cutter output short structured plans; a local 8B model does this well,
   keeps free-tier quota for writing, and works offline.
 - Reply parsing is **not** AI: the first word of a reply is matched in code. Mail text can
@@ -170,7 +186,12 @@ Why this split:
   the pipeline still works when it is unavailable.
 
 Model ids are set in `.env` (e.g. `gemini-2.5-flash`, `llama-3.3-70b-versatile`, `qwen3:8b`,
-`claude-opus-5-5`) and checked at M0, because free-tier model names change.
+`claude-opus-5-5`) and checked at M0, because free-tier model names change. M0 also reads
+each model's **daily** free limit in Google AI Studio and the Groq console (reported free
+limits for Flash models have been cut sharply before, and older Gemini models get shut
+down): the chosen models must allow ≥ 60 requests a day (one video ≈ 12, the Sunday
+diagnosis ≈ 40, plus retries). A daily-quota 429 counts as that provider failing, so the
+chain moves on to the next provider.
 About 8–12 worker LLM calls and 2 Master calls make one video.
 
 ### 4.1 Scout — research
@@ -233,7 +254,9 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
                 "query": "stock search words", "text": "card text", "url": "screenshot url"},
      "on_screen_text": "≤ 6 words"}]}
   ```
-- **Rules:** `screenshot` only for `primary_url` (official site or repo), never news sites;
+- **Rules:** `screenshot` only for `primary_url` (official site or repo), never news sites
+  (enforced in code: n8n replaces any other screenshot url with a `card`, and the renderer
+  checks the url again, §5);
   `card` for numbers, names and lists; `stock` for mood shots; no two `stock` scenes in a row
   with the same query.
 
@@ -275,9 +298,15 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
 - **Model:** Claude (`MASTER_MODEL`, default `claude-opus-5-5`), called by n8n directly
   through the Anthropic Messages API in `sc.ask_master` (§5.1). Not through `sc.llm`: there
   is no fallback provider.
-- **Cost:** ≈ 3–6 calls a day at ≈ 5–15 k tokens each (Opus 5.5: $4 in / $20 out per million
-  tokens) ≈ $5–15 a month, plus the weekly diagnosis (§4.9) ≈ $3–4 a month; ≈ $8–19 in all,
-  capped by the Console spend limit (§1).
+- **Effort per task (fixed in `sc.ask_master`):** `review_script`, `review_video` and
+  `daily` use `MASTER_EFFORT` (default `medium`); `triage`, `diagnose_research` and
+  `diagnose_grade` always use `high`. Thinking tokens are billed as output, so effort is
+  the main cost lever.
+- **Cost:** per video 2 reviews at ≈ 10 k in + ≈ 3 k out (≈ $0.10 each), a daily review at
+  ≈ 20 k in + ≈ 4 k out (≈ $0.16), and a rare triage: ≈ $0.35–0.6 a day ≈ $10–20 a month,
+  plus the weekly diagnosis (§4.9) ≈ $3–4 a month; ≈ $10–25 in all (Opus 5.5: $4 in / $20
+  out per million tokens), capped by the Console spend limit (§1, default $40). When the
+  cap is reached the Master is simply down for the rest of the month (see below).
 - **Jobs:**
   1. **Script review** — in `sc.create`, after a clean Checker pass, before the mail.
      Input: brief, script, check result, `style.md`. Judges hook, clarity, pacing, voice,
@@ -286,7 +315,7 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
      script, edit plan, render report, word transcript and a 2×3 frame contact sheet
      (read from the job folder by n8n and sent as an image). Judges visual variety, caption sync, card text, whether the
      visuals match the narration. `redo` → Cutter with the feedback → re-render once.
-  3. **Triage** — `sc.master` claims jobs in `triage` (3 failed attempts). Input: job row,
+  3. **Triage** — `sc.master` picks jobs in `triage` (3 failed attempts). Input: job row,
      `last_error`, failed step, provider history. Decides `retry`, `redo`, `reject` or `fail`.
   4. **Daily review** (21:00) — input: jobs per status, last 24 h of errors, `master_log`,
      per-agent stats (provider used, fallback rate, Checker flag rate, owner change
@@ -320,8 +349,9 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
   - It never edits prompts, settings or workflows. Those changes go in the brief as
     suggestions for the owner.
 - **When the Master is down** (API outage, spend limit reached, key revoked): reviews
-  are skipped and noted in `master_log`; `triage` jobs wait, and after 6 h `sc.timeouts`
-  marks them `failed` + `ALERT` (the behaviour without a Master); a `master_down` alert
+  are skipped and noted in `master_log`; `triage` jobs wait (a failed Master call does not
+  count as an attempt), and 6 h after `triage_at` `sc.timeouts` marks them `failed` +
+  `ALERT` (the behaviour without a Master); a `master_down` alert
   is sent after 24 h.
 - **Prompts:** `prompts/master_review_script.md`, `master_review_video.md`,
   `master_triage.md`, `master_daily.md`, `master_diagnose_research.md`,
@@ -373,7 +403,7 @@ mail, healthy or not. It has a *Manual Trigger* too, for testing.
    free tier. Any model that is paid or `unknown` puts a warning in the report's first line.
    The Master's own cost this week (from `master_log.usage`) is listed apart: it is the one
    paid part, by design.
-7. **Report** — Gmail **Send** `ShortCircuit weekly diagnosis — <date>` (HTML): first line
+7. **Report** — `sc.mail` `ShortCircuit weekly diagnosis — <date>` (HTML): first line
    "All N agents healthy · all workers local or free" or what is wrong; then a table per
    agent (status, score, fixtures passed per provider, best provider, local/free + link);
    tested candidates with their results and the exact `.env` line to switch
@@ -416,7 +446,13 @@ contact_sheet}` (synchronous, ≤ 10 min). `transcript` is the whisper word list
 3. **Visuals per scene, cut to that scene's voice length:**
    - `stock`: Pexels video search (portrait, ≥ 1080 px), cached by query in `data/cache/`.
    - `card`: Pillow renders the text on the channel template (`assets/brand/`).
-   - `screenshot`: Playwright opens the url at 1080×1920, scrolls it slowly.
+   - `screenshot`: Playwright opens the url at 1080×1920, scrolls it slowly. **URL check
+     first (trust boundary: the url comes from web text):** `https` only, a hostname with a
+     dot (no single-label Docker names like `n8n` or `postgres`), no IP literal, and the
+     hostname must resolve only to public addresses (no loopback, private, link-local or
+     `host.docker.internal`). Playwright routes every request (redirects, sub-resources)
+     through the same check and aborts the ones that fail. A failed check → that scene
+     becomes a `card` and a warning is returned.
 4. **Captions:** word-by-word highlighted ASS subtitles, burned in.
 5. **Music:** a random track of `music_mood`, ducked under the voice (sidechain).
 6. **Encode:** 1080×1920, 30 fps, H.264 CRF 18 (max 10 Mbps), AAC 192 kbps, loudness −14 LUFS.
@@ -425,7 +461,9 @@ contact_sheet}` (synchronous, ≤ 10 min). `transcript` is the whisper word list
 
 Other endpoints: `GET /health`, `DELETE /jobs/{id}` (removes local files), `POST /cache/prune`.
 Tests: `renderer/tests/` renders a 2-scene fixture plan offline (fixture clip + fixture WAV)
-and asserts duration, streams and loudness.
+and asserts duration, streams and loudness; a url-check test asserts that `http://…`,
+`https://n8n:5678`, `https://10.0.0.1`, `https://localhost` and a host that resolves to a
+private address are all refused.
 
 Brand assets (font, colours, card template, outro frame) live in `assets/brand/`.
 Music: tracks downloaded once by hand from the YouTube Audio Library into
@@ -450,7 +488,7 @@ Nodes:
 3. *Code — build the request body:*
    ```json
    {"model": "{{$env.MASTER_MODEL}}", "max_tokens": 16000,
-    "output_config": {"effort": "{{$env.MASTER_EFFORT}}",
+    "output_config": {"effort": "<per task, §4.8>",
                       "format": {"type": "json_schema", "schema": <task schema>}},
     "fallbacks": "default",
     "system": "<prompt file>",
@@ -467,10 +505,12 @@ Nodes:
              {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 10,
               "allowed_domains": [<DIAG_WEB_DOMAINS>]}]
    ```
-   and **no** `output_config.format`: web search answers carry citations, and the API
-   rejects citations together with a JSON schema (400). The prompt asks for one JSON object
-   at the end of the reply instead. These are server tools: Anthropic runs them, n8n runs
-   nothing, and they cannot reach the Mac.
+   with **no** `output_config.format`, and `max_tokens: 32000` (several search rounds plus
+   thinking need more room). Web search answers carry citations, and citations and a JSON
+   schema do not mix (documented for document citations; M7 checks it for web search, and
+   the workaround is safe either way). The prompt asks for one JSON object at the end of
+   the reply instead. These are server tools: Anthropic runs them, n8n runs nothing, and
+   they cannot reach the Mac.
 4. *HTTP Request* `POST https://api.anthropic.com/v1/messages`, credential `Anthropic`
    (Header Auth `x-api-key`), headers `anthropic-version: 2026-10-21` and
    `anthropic-beta: server-side-fallback-2026-07-01`, timeout 5 min (10 min for
@@ -499,8 +539,9 @@ runs weekly; an overlap with a triage call shares no state and is harmless.)
 `console.groq.com`, `ollama.com`, `huggingface.co`, `github.com`, `lmarena.ai`,
 `artificialanalysis.ai`. Fewer domains, less room for a planted page.
 
-Settings: `MASTER_MODEL` (default `claude-opus-5-5`), `MASTER_EFFORT` (default `high`; the
-model's own default is `medium`). Thinking is always on with Opus 5.5 and needs no setting.
+Settings: `MASTER_MODEL` (default `claude-opus-5-5`), `MASTER_EFFORT` (default `medium`,
+used for reviews and the daily review; triage and diagnosis always use `high`). Thinking is
+always on with Opus 5.5 and needs no setting.
 `fallbacks: "default"` lets the API retry a safety refusal on another Claude model inside
 the same call; the response's `model` field says which one answered.
 
@@ -516,8 +557,11 @@ key → `auth`, a wrong model id → `invalid`.
 - **Slot assignment** happens when a video is first rendered: the earliest free day whose
   slot (that weekday's time) is at least 48 h away. That leaves the 12 h review, the upload
   and a safety margin. A Scheduler change affects only slots assigned after it.
-  A day freed by `REJECT`/`CANCEL` is taken by the next render, so later videos never move
-  (which matters because in `manual` mode the owner has already scheduled them in Studio).
+  A day freed by `REJECT`/`CANCEL` is taken by the next render if it is still ≥ 48 h away,
+  so later videos never move (which matters because in `manual` mode the owner has already
+  scheduled them in Studio). A day freed less than 48 h ahead stays **empty**: that day has
+  no Short. It is not an error (no `slot_missed` alert, because the cleared slot belongs to
+  no job), and the Master brief lists it.
 - **Buffer** = jobs with a slot in the future (`video_review`, `video_editing`, `approved`,
   `awaiting_upload`, `scheduled`). **Pipeline** = jobs before render (`new`, `script_review`,
   `needs_human`, `revising`, `script_approved`).
@@ -587,12 +631,15 @@ CREATE TABLE jobs (
   slot_at          timestamptz UNIQUE,
   slot_date        date UNIQUE,                  -- slot day in TZ: one video per day
   triage_from      text,                         -- status the job failed in
+  triage_at        timestamptz,                  -- when it entered triage (6 h timeout)
   master_rounds    int  NOT NULL DEFAULT 0,      -- Master interventions (max 2)
+  providers        jsonb NOT NULL DEFAULT '{}',  -- provider used per agent, e.g. {"writer": "gemini"}
+  outbox           jsonb,                        -- {subject, html} of a mail not yet sent (§10.3)
   drive_file_id    text,
   drive_link       text,
   youtube_id       text,
   gmail_thread_id  text,
-  gmail_message_id text,                         -- last bot mail, for threaded replies
+  gmail_message_id text,                         -- last bot mail sent by sc.mail (audit)
   created_at       timestamptz NOT NULL DEFAULT now(),
   updated_at       timestamptz NOT NULL DEFAULT now()
 );
@@ -652,6 +699,7 @@ reading the release notes). Runs in Docker Compose next to Postgres, Kokoro and 
 | `N8N_RESTRICT_FILE_ACCESS_TO` | `/data` | File nodes may only touch the shared folder |
 | `N8N_BLOCK_ENV_ACCESS_IN_NODE` | `false` | Workflows read settings (`OWNER_EMAIL`, `PUBLISH_MODE`, …) from `$env`. (n8n Variables need a paid plan) |
 | `EXECUTIONS_DATA_PRUNE`, `EXECUTIONS_DATA_MAX_AGE` | `true`, `336` (14 days) | Workers run every few minutes; old runs must be pruned |
+| `EXECUTIONS_TIMEOUT`, `EXECUTIONS_TIMEOUT_MAX` | `4800` (80 min) | No run can outlive its 90-min job lock (§10.3), so a lock is never cleared under a live run |
 | `N8N_DIAGNOSTICS_ENABLED`, `N8N_PERSONALIZATION_ENABLED` | `false` | No telemetry |
 | `N8N_RUNNERS_ENABLED` | `true` (default) | Code nodes run in the task runner. Only JavaScript Code nodes are used |
 
@@ -681,38 +729,54 @@ credentials: the renderer holds the Pexels key in its own env.
 - **Names:** `sc.<name>`. Exported to `workflows/sc.<name>.json` and committed.
 - **Settings:** Error workflow = `sc.error`. Timezone = default. For timer workers:
   "Save successful executions" = off, "Save failed executions" = on.
-- **Worker pattern** (all timer workflows except `sc.produce`):
+- **Worker pattern** (all timer workflows except `sc.produce`, `sc.timeouts` and the
+  triage part of `sc.master`):
   1. *Schedule Trigger* (interval).
   2. *Postgres — claim:*
      ```sql
      UPDATE jobs SET locked_at = now(), attempts = attempts + 1, updated_at = now()
      WHERE id = (SELECT id FROM jobs
                  WHERE status = ANY($1) AND attempts < 3
-                   AND (locked_at IS NULL OR locked_at < now() - interval '30 minutes')
+                   AND (locked_at IS NULL OR locked_at < now() - interval '90 minutes')
                  ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
      RETURNING *;
      ```
+     The 90-min lock is longer than the longest run (render + Master review + re-render +
+     Drive upload), and `EXECUTIONS_TIMEOUT` (80 min, §10.1) kills any run before its lock
+     can expire, so two runs never hold the same job.
   3. *If* no row → stop.
   4. The step's nodes.
   5. *Postgres — finish:* `UPDATE jobs SET status = $next, attempts = 0, locked_at = NULL,
      last_error = NULL, … WHERE id = $id AND status = $expected`.
+- **Step failures:** every node that can fail (HTTP, `sc.llm`, `sc.ask_master`, Drive,
+  YouTube, renderer, Postgres) has *On Error = continue (error output)*, wired to one
+  *Postgres — fail* node: `UPDATE jobs SET last_error = $error, locked_at = NULL WHERE id =
+  $id`. The job id is in hand there, so the next tick simply tries again. After 3 attempts
+  `sc.timeouts` moves it to `triage` for the Master (§4.8).
 - **Retries:** external nodes (HTTP, LLM, Gmail, Drive, YouTube) use the node setting
-  *Retry On Fail* (3 tries, 10–30 s wait). A step that still fails leaves the job claimed;
-  `sc.error` records the error and clears the lock, and the next tick tries again. After
-  3 attempts `sc.timeouts` moves it to `triage` for the Master (§4.8).
-- **Mail order:** a worker sends its mail **after** writing the new status, and the status
-  write records the Gmail ids afterwards. Worst case after a crash: a missing mail, never a
-  duplicate action.
+  *Retry On Fail* (3 tries, 10–30 s wait) before taking the error output.
+- **`sc.error`** only catches what the fail branch cannot (an execution timeout, a crashed
+  run): n8n's Error Trigger has no item data, so it does not touch jobs. Their locks expire
+  after 90 min and the job is claimed again.
+- **Mail order (outbox):** a worker never sends mail itself. Its *finish* update writes the
+  new status **and** the mail to send (`outbox = {subject, html}`) in the same statement,
+  then calls `sc.mail` with the job id. `sc.mail` sends it, then sets `outbox = NULL` and
+  saves the Gmail ids. A crash between the two leaves `outbox` set: `sc.timeouts` re-sends
+  it, and **nothing auto-approves while `outbox` is set**, so silence can only approve a
+  mail the owner actually got. Worst case: a mail sent twice, never an action the owner
+  could not see.
 - **No secrets in workflows:** keys only in credentials, settings only in `$env`.
 
 ### 10.4 `sc.llm` — the shared model call (sub-workflow)
 
 Called by every agent step with *Execute Workflow* (wait for completion).
 
-Input: `{agent, system_prompt, user_content, schema_required_keys, chain}`, where `chain`
-comes from `$env` (e.g. `LLM_CHAIN_WRITER=gemini,groq,ollama`). An entry may name its model,
-`groq:<model id>`; without one the provider's `*_MODEL` setting applies. `sc.diagnose`
-passes one-entry chains to test a single provider or a candidate model.
+Input: `{agent, system_prompt, user_content, schema_required_keys, chain, exclude_provider?}`,
+where `chain` comes from `$env` (e.g. `LLM_CHAIN_WRITER=gemini,groq,ollama`). An entry may
+name its model, `groq:<model id>`; without one the provider's `*_MODEL` setting applies.
+`sc.diagnose` passes one-entry chains to test a single provider or a candidate model.
+`exclude_provider` removes that provider from the chain (the Checker passes
+`jobs.providers.writer`, or `.editor` after an edit, §4); an empty chain is an error.
 
 Nodes:
 1. *Execute Workflow Trigger* (input fields defined).
@@ -727,12 +791,16 @@ Nodes:
 4. *Code — validate:* parse JSON, check required keys and types, check lengths
    (e.g. title ≤ 70). Valid → return it and leave the loop. Invalid → one repair try on the
    same provider with the error message appended, then next provider.
-5. All providers failed → throw (the caller's job stays claimed; normal retry applies).
+5. All providers failed → throw (the caller's error output takes it to the fail branch,
+   §10.3; normal retry applies).
 
-Output: `{ok, provider, model, json, tokens}`. The provider used is saved with the job.
+Output: `{ok, provider, model, json, tokens}`. The caller saves the provider in
+`jobs.providers` under the agent's name.
 
 Ollama settings: `OLLAMA_CONTEXT_LENGTH=16384` (the default context is too small for source
-texts), `OLLAMA_KEEP_ALIVE=10m` (frees memory between jobs).
+texts), `OLLAMA_KEEP_ALIVE=10m` (frees memory between jobs). `sc.render` also unloads the
+model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_MODEL>,
+"keep_alive": 0}`), so Ollama and the renderer are never in memory together (§11).
 
 ### 10.5 Workflow list
 
@@ -743,14 +811,16 @@ texts), `OLLAMA_KEEP_ALIVE=10m` (frees memory between jobs).
 | `sc.inbox` | Gmail Trigger, every 1 min | — (event) | — | `revising`, `script_approved`, `video_editing`, `approved`, `rejected`, `cancelled` |
 | `sc.revise` | Every 2 min | `revising` | Editor, Checker | `script_review` / `needs_human` |
 | `sc.render` | Every 2 min | `script_approved`, `video_editing` | Editor, Checker, Director, Cutter, Master | `video_review` / `approved` |
-| `sc.timeouts` | Every 15 min | — | — | auto-approves, drops, `triage`, fails |
-| `sc.master` | Every 5 min + daily 21:00 | `triage` | Master | `triage_from`, `revising`, `video_editing`, `rejected`, `failed` |
+| `sc.timeouts` | Every 15 min | — | — | auto-approves, drops, `triage`, fails; re-sends outbox |
+| `sc.master` | Every 5 min + daily 21:00 | `triage` (own pick, no attempts) | Master | `triage_from`, `revising`, `video_editing`, `rejected`, `failed` |
 | `sc.schedule` | Sunday 04:00 | — | Scheduler | — (writes `schedule`) |
 | `sc.diagnose` | Sunday 05:00 + Manual | — | all workers (fixtures), Master | — (writes `master_log`, mails the report) |
 | `sc.publish` | Every 15 min | `approved`, cancelled-with-upload | — | `scheduled` / `awaiting_upload` |
 | `sc.livecheck` | Every hour | `awaiting_upload`, `scheduled`, `live` | — | `scheduled`, `live`, `done`, `cancelled`; saves `metrics` |
 | `sc.housekeeping` | Sunday 03:00 | — | — | — |
 | `sc.alert` | Called | — | — | — |
+| `sc.mail` | Called | — | — | — (sends to `OWNER_EMAIL` only; clears `outbox`) |
+| `sc.channel` | Called | — | — | — (checks the credential's channel is `CHANNEL_HANDLE`) |
 | `sc.error` | Error Trigger | — | — | clears lock, saves error |
 | `sc.llm` | Called | — | (all workers) | — |
 | `sc.ask_master` | Called | — | Master | — (writes `master_log`) |
@@ -774,50 +844,67 @@ texts), `OLLAMA_KEEP_ALIVE=10m` (frees memory between jobs).
    dedupe by url.
 4. Postgres: topics of the last 60 days.
 5. `sc.llm` **Scout rank** → chosen item + 2–4 source urls.
+5a. Code — **url check (trust boundary: urls come from model output):** keep a source url
+    only if it is `https`, has a dotted hostname that is not an IP literal, and is one of the
+    candidate urls from step 3 (the Scout may not invent urls). Fewer than 2 left → error
+    (fail branch). `primary_url` is kept only if its hostname is a source's hostname or
+    `github.com`; otherwise it is set to `null` (no screenshot; the renderer checks again, §5).
 6. HTTP Request per source url → HTML node (extract `article`/`main` text) → Code: trim to
    ~3 000 words each.
 7. `sc.llm` **Scout brief** → brief.
 8. `sc.llm` **Writer** → script.
-9. `sc.llm` **Checker** → If fail: `sc.llm` **Writer** (fix with flags) → **Checker** again.
+9. `sc.llm` **Checker** (`exclude_provider` = the Writer's provider) → If fail: `sc.llm`
+   **Writer** (fix with flags) → **Checker** again.
 9a. Clean check only: `sc.ask_master` (`review_script`).
     `redo` → `sc.llm` **Writer** (fix with Master feedback) → **Checker** (a fail now →
     `needs_human`); `master_rounds + 1`. `ok: false` → continue (already logged as skipped).
-10. Postgres: save brief, script, check result; status `script_review` (deadline now + 12 h)
-    or `needs_human` (deadline now + 48 h).
-11. Gmail **Send** (to `OWNER_EMAIL`, HTML): script, sources, checker result, how to reply.
-12. Postgres: save `gmail_thread_id`, `gmail_message_id`.
+10. Postgres (finish): save brief, script, check result, `providers`; status `script_review`
+    (deadline now + 12 h) or `needs_human` (deadline now + 48 h); `outbox` = the mail
+    (script, sources, checker result, how to reply).
+11. `sc.mail` (job id).
 
 **`sc.inbox`** — the only event workflow
 1. Gmail Trigger (`Gmail Bot`), poll every minute, filter
    `from:OWNER_EMAIL is:unread subject:"[SC-"`, *Simplify* off (full body needed).
-2. Code: check the sender header matches `OWNER_EMAIL` exactly (filter alone is not trusted);
-   extract job id from subject; take the text part, cut everything from the first quoted
+2. Code: check the sender address matches `OWNER_EMAIL` exactly (filter alone is not
+   trusted) **and** that the `Authentication-Results` header Gmail added shows
+   `dmarc=pass` and `dkim=pass` with `header.d` equal to the domain of `OWNER_EMAIL`
+   (a spoofed From fails this); otherwise mark read, label `sc/ignored`, stop.
+   Extract job id from subject; take the text part, cut everything from the first quoted
    line (`On … wrote:`, `>`, `-----Original`); first word → command; rest → notes.
 3. Postgres: insert into `replies` (`ON CONFLICT DO NOTHING`); no row inserted → already
    handled → stop.
 4. Postgres: load job. Switch on `status` × `command` → one guarded update each, e.g.
    `UPDATE jobs SET status='revising', notes=$notes WHERE id=$id AND status IN ('script_review','needs_human')`.
    Approve-with-notes on a script stores the notes and sets `script_approved`.
+   Approve-with-notes on a video stores the notes and sets `video_editing`.
    `REJECT`/`CANCEL` also clear the slot.
-5. 0 rows updated (wrong state, e.g. reply to an old mail) → Gmail Reply in thread:
-   "SC-0042 is now <status>; your reply was not applied."
+5. 0 rows updated (wrong state, e.g. reply to an old mail) → `sc.mail`
+   (`[SC-0042] Not applied`): "SC-0042 is now <status>; your reply was not applied."
 6. Gmail: mark as read, add label `sc/processed`.
 
 **`sc.revise`** — script change requests
 1. Claim `revising`. If `round ≥ 3` → `needs_human` with reason "3 rounds used".
-2. `sc.llm` **Editor** (script + notes + brief) → `sc.llm` **Checker**.
-3. Save; `round + 1`; `script_review` (12 h) or `needs_human` (48 h); clear `notes`.
-4. Gmail **Reply** in the job thread with the new script and `editor_notes`.
+2. `sc.llm` **Editor** (script + notes + brief) → `sc.llm` **Checker** (`exclude_provider` =
+   the Editor's provider).
+3. Finish: save; `round + 1`; `script_review` (12 h) or `needs_human` (48 h); clear `notes`;
+   `outbox` = the new script and `editor_notes`.
+4. `sc.mail` (job id).
 
 **`sc.render`** — edit plan, render, Drive, slot
 1. Claim `script_approved` or `video_editing`, **only if no other job is locked in these states**
    (one render at a time).
-2. If `script_approved` with notes → `sc.llm` **Editor** → **Checker**; flagged →
-   `needs_human`, stop.
+2. If `script_approved` with notes → `sc.llm` **Editor** → **Checker** (`exclude_provider` =
+   the Editor's provider); flagged → finish as `needs_human` (deadline now + 48 h, `outbox` =
+   the `NEEDS YOU` mail) → `sc.mail`, stop.
 3. Branch:
    - first render: `sc.llm` **Director** → plan.
    - `video_editing`: `sc.llm` **Cutter** (plan + notes). If the notes change narration →
      **Editor** + **Checker** first, then **Director** on the new script.
+   Then Code: any `screenshot` scene whose url is not the job's checked `primary_url` (§5a of
+   `sc.create`) becomes a `card`.
+3a. HTTP Request `POST host.docker.internal:11434/api/generate {"model": <OLLAMA_MODEL>,
+    "keep_alive": 0}` (On Error: continue): unloads Ollama before the render (§11).
 4. HTTP Request `POST renderer:8000/render` (timeout 15 min).
 4a. `sc.ask_master` (`review_video`, `image_path` = the render's `contact_sheet`). `redo` and
     `master_rounds < 2` → `sc.llm` **Cutter** (plan + Master feedback) → render again
@@ -829,36 +916,53 @@ texts), `OLLAMA_KEEP_ALIVE=10m` (frees memory between jobs).
 8. First render only — Postgres: assign slot (earliest free day whose `schedule` time is
    ≥ now + 48 h; set `slot_at` and `slot_date`; the `UNIQUE` constraint plus a retry
    handles a race).
-9. Postgres: status `video_review` (deadline now + 12 h) or `approved` (after an edit).
-10. Gmail Reply in thread: Drive link, slot time, script, or the `Updated video` note.
+9. Postgres (finish): status `video_review` (deadline now + 12 h) or `approved` (after an
+   edit); `outbox` = the mail (Drive link, slot time, script, or the `Updated video` note).
+10. `sc.mail` (job id).
 
 **`sc.timeouts`** — the clock
 1. Schedule every 15 min.
 2. Postgres (one statement each):
-   - `script_review` past deadline → `script_approved`.
-   - `video_review` past deadline → `approved`.
-   - `needs_human` past deadline → `rejected`, slot cleared.
-   - `attempts ≥ 3` in any active state → `triage` (`triage_from = status`, `attempts = 0`);
-     if `master_rounds ≥ 2` → `failed` + `sc.alert` (`job_failed:SC-0042`) instead.
-   - `triage` for > 6 h (Master down) → `failed` + `sc.alert` (`job_failed:SC-0042`).
-   - locked > 30 min → clear the lock (a crashed run).
+   - `outbox IS NOT NULL`, not locked, `updated_at` > 10 min ago (a mail lost in a crash) →
+     `sc.mail` (job id) again; for `script_review`, `video_review` and `needs_human` also
+     `review_deadline = now() + 12 h` (48 h for `needs_human`), so the owner gets the full
+     review time.
+   - `script_review` past deadline **and `outbox IS NULL`** → `script_approved`.
+   - `video_review` past deadline **and `outbox IS NULL`** → `approved`.
+   - `needs_human` past deadline and `outbox IS NULL` → `rejected`, slot cleared.
+   - `attempts ≥ 3` in any active state **except `triage`** → `triage` (`triage_from =
+     status`, `triage_at = now()`, `attempts = 0`); if `master_rounds ≥ 2` → `failed` +
+     `sc.alert` (`job_failed:SC-0042`) instead.
+   - `triage` with `triage_at` > 6 h ago (Master down) → `failed` + `sc.alert`
+     (`job_failed:SC-0042`). (`updated_at` is not used: claims change it.)
+   - locked > 90 min → clear the lock (a crashed run; `EXECUTIONS_TIMEOUT` guarantees no
+     live run holds it).
 
-**`sc.publish`** — to YouTube
-- `auto` mode, claim `approved`: Google Drive **download** → YouTube **Upload**
+**`sc.publish`** — to YouTube (the only workflow with YouTube write nodes)
+- `auto` mode, claim `approved`: `sc.channel` → `ok: false` → fail branch, stop (nothing is
+  uploaded). Then Google Drive **download** → YouTube **Upload**
   (title, description, tags, category 28, privacy `private`, publish at `slot_at`; options
   the node lacks, like `containsSyntheticMedia`, are set by an HTTP Request `videos.update`
-  with the `YouTube Channel` credential) → save `youtube_id` → `scheduled`.
-  `cancelled` with a `youtube_id` → YouTube **Delete** → clear `youtube_id`.
+  with the `YouTube Channel` credential) → Code: the upload response's
+  `snippet.channelId` must equal `sc.channel`'s `channel_id` (else `ALERT`
+  `channel_mismatch`, job to fail branch) → save `youtube_id` → `scheduled`.
+  `cancelled` with a `youtube_id` → `sc.channel` → `videos.list?id=<youtube_id>` and check its
+  `snippet.channelId` is that channel → YouTube **Delete** → clear `youtube_id`. A video on
+  any other channel is never updated or deleted.
 - `manual` mode: Postgres: all `approved`. Send the pack if count ≥ 3 or the earliest
-  `slot_at` < now + 36 h → Gmail **Send** the pack (per video: Drive link, title,
-  description, tags incl. `sc-####`, slot time) → `awaiting_upload`.
+  `slot_at` < now + 36 h → finish (`awaiting_upload`, `outbox` = the pack: "Upload to
+  `CHANNEL_HANDLE`", and per video: Drive link, title, description, tags incl. `sc-####`,
+  slot time) → `sc.mail`. (One pack covers several jobs: the outbox sits on the earliest job.)
 
 **`sc.livecheck`** — confirms, cleans up
 1. Schedule hourly.
-2. HTTP Request (`YouTube Channel`): `channels.list?mine=true` → uploads playlist →
+2. `sc.channel` → `ok: false` → stop (no job changes while the credential points at another
+   channel; `sc.channel` has already alerted).
+3. HTTP Request (`YouTube Channel`): uploads playlist of `channel_id` →
    `playlistItems.list` (last 50) → `videos.list?part=snippet,status,statistics`
-   (≈ 3 quota units a run).
-3. Code: match videos to jobs by tag `sc-####` (title as fallback).
+   (≈ 4 quota units a run with step 2).
+3a. Code: drop any video whose `snippet.channelId` is not `channel_id`; match the rest to
+   jobs by tag `sc-####` (title as fallback).
 4. Postgres updates:
    - `awaiting_upload` found with a `publishAt` → `scheduled`, save `youtube_id`.
    - `scheduled` and now `public` → `live`.
@@ -869,21 +973,28 @@ texts), `OLLAMA_KEEP_ALIVE=10m` (frees memory between jobs).
    `metrics` (`ON CONFLICT DO NOTHING`, so each snapshot is taken once).
 
 **`sc.master`** — the supervisor
-- *Triage* (Schedule every 5 min): claim `triage` → Postgres: job, recent `master_log`,
-  providers used → `sc.ask_master` (`triage`) → Switch on `action`, one guarded
+- *Triage* (Schedule every 5 min): its own pick, not the worker claim, so a failed Master
+  call never counts as an attempt:
+  `UPDATE jobs SET locked_at = now() WHERE id = (SELECT id FROM jobs WHERE status = 'triage'
+  AND (locked_at IS NULL OR locked_at < now() - interval '90 minutes') ORDER BY triage_at
+  LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *` → Postgres: job, recent `master_log`,
+  `providers` → `sc.ask_master` (`triage`) → Switch on `action`, one guarded
   update each (`WHERE id = $id AND status = 'triage'`), `master_rounds + 1`:
   - `retry` → `status = triage_from`, `attempts = 0`.
   - `redo` → `revising` (script states) or `video_editing` (video states), `notes =`
     feedback, prefixed "From the Master:"; any other state → same as `retry`.
   - `reject` → `rejected`, slot cleared (the Producer replaces it).
   - `fail` → `failed` + `sc.alert` (`job_failed:SC-0042`) with the diagnosis.
-  `ok: false` → leave the job unclaimed for the next tick (`sc.timeouts` ends it after 6 h).
+  Every update also sets `locked_at = NULL`.
+  `ok: false` → clear `locked_at` and leave the job for the next tick (`sc.timeouts` ends it
+  6 h after `triage_at`).
   Every decision goes to `master_log`.
 - *Daily review* (Schedule 21:00): Postgres snapshot queries (§4.8 input) → `sc.ask_master`
   (`daily`) → apply `actions` with the same guarded updates (only on jobs in `failed` or
   stuck > 24 h; anything else is ignored and logged) → `master_log` → if there are
-  actions, suggestions, findings or a Scheduler change today: Gmail **Send**
-  `ShortCircuit Master brief — <date>` (the brief, plus every Master decision of the day).
+  actions, suggestions, findings, an empty slot day (§6) or a Scheduler change today:
+  `sc.mail` `ShortCircuit Master brief — <date>` (the brief, plus every Master decision of
+  the day).
   Master error → `sc.alert` (`master_down`) if no Master call worked in 24 h.
 
 **`sc.schedule`** — weekly, Sunday 04:00
@@ -914,18 +1025,37 @@ texts), `OLLAMA_KEEP_ALIVE=10m` (frees memory between jobs).
    $10 per 1 000 searches; update them if `MASTER_MODEL` changes); build the HTML report.
    `ok: false` from step 5 or 8 → that part is marked "Master unavailable".
 10. Postgres: insert the test results (`diagnose_tests`) into `master_log`.
-11. Gmail **Send** `ShortCircuit weekly diagnosis — <date>`.
+11. `sc.mail` `ShortCircuit weekly diagnosis — <date>`.
 
 **`sc.housekeeping`** — weekly
 `POST renderer:8000/cache/prune`; Google Drive: delete files in `ready/` that belong to no
 active job; Postgres: drop `replies` and `master_log` rows older than 90 days.
 
 **`sc.alert`** — `{key, subject, text}`. Postgres: skip if the same `key` was sent in the last
-24 h; else Gmail **Send** `ShortCircuit ALERT: …` and upsert `alerts`.
+24 h; else `sc.mail` `ShortCircuit ALERT: …` and upsert `alerts`.
 
-**`sc.error`** — Error Trigger → Code (workflow, node, message, job id if present) →
-Postgres: save `last_error`, clear `locked_at` → if the same workflow failed 3 times in an
-hour → `sc.alert` (`workflow_failing:<name>`).
+**`sc.mail`** — the only Gmail Send node (§1). Input: `{job_id}` (sends that job's `outbox`)
+or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
+1. Execute Workflow Trigger.
+2. Code: `OWNER_EMAIL` must be set and look like one address (no `,` or `;`); else throw
+   (nothing is sent). With `job_id`: load the job; `outbox` empty → stop.
+3. Gmail **Send** (`Gmail Bot`): To = `{{$env.OWNER_EMAIL}}` (fixed in the node, no CC/BCC),
+   subject and HTML from step 2. Every job mail keeps the `[SC-0042]` prefix, so Gmail
+   groups them; exact threading is cosmetic and nothing depends on it.
+4. With `job_id`: Postgres `UPDATE jobs SET outbox = NULL, gmail_thread_id = $t,
+   gmail_message_id = $m WHERE id = $id`.
+
+**`sc.channel`** — the channel guard (§1). Output `{ok, channel_id}` or `{ok: false, reason}`.
+1. HTTP Request (`YouTube Channel`): `channels.list?part=id&forHandle=<CHANNEL_HANDLE>` →
+   the handle's channel id (none → `ok: false`, `handle_not_found`).
+2. HTTP Request (`YouTube Channel`): `channels.list?part=id&mine=true` → the credential's
+   channel id.
+3. Code: equal → `ok: true`. Different → `sc.alert` (`channel_mismatch`, "the YouTube
+   credential is for another channel; nothing was uploaded") and `ok: false`.
+   (2 quota units a call.)
+
+**`sc.error`** — Error Trigger → Code (workflow, node, message) → if the same workflow failed
+3 times in an hour → `sc.alert` (`workflow_failing:<name>`). It does not touch jobs (§10.3).
 
 ## 11. Deployment on the M4 Mac (16 GB)
 
@@ -943,7 +1073,8 @@ services:
   n8n reaches it at `host.docker.internal:11434`.
 - **Memory:** Docker Desktop limit 6 GB (renderer + Kokoro + n8n + Postgres; the Master
   runs in Anthropic's cloud); Ollama 8B ≈ 6 GB
-  while loaded and unloads after 10 min. Leaves room for macOS.
+  while loaded and unloads after 10 min, and `sc.render` unloads it before every render
+  (§10.6), so the two peaks never overlap. Leaves room for macOS.
 - **Always on:** Docker Desktop and Ollama start at login; the Mac logs in automatically;
   `sudo pmset -c sleep 0 disksleep 0` (never sleep on power) and `sudo pmset autorestart 1`
   (boot after a power cut).
@@ -978,7 +1109,7 @@ editing a prompt needs no workflow change.
 
 ```
 docker-compose.yml
-.env.example        OWNER_EMAIL, BOT_EMAIL, TZ, PUBLISH_TIME, PUBLISH_MODE, BUFFER_TARGET,
+.env.example        OWNER_EMAIL, CHANNEL_HANDLE, BOT_EMAIL, TZ, PUBLISH_TIME, PUBLISH_MODE, BUFFER_TARGET,
                     LLM_CHAIN_*, GEMINI_MODEL, GROQ_MODEL, OLLAMA_MODEL, PEXELS_API_KEY,
                     N8N_ENCRYPTION_KEY, POSTGRES_*, SCHEDULE_CANDIDATES, MASTER_MODEL,
                     MASTER_EFFORT   (the Anthropic key is an n8n credential, not in .env)
@@ -990,7 +1121,8 @@ tests/agents/<agent>/  fixtures (input + expect) for the weekly diagnosis
 workflows/          sc.*.json (exported, committed)
 assets/brand/       font, colours, card template, outro
 assets/music/<mood>/
-scripts/            backup.sh, restore.sh, export-workflows.sh, import-workflows.sh
+scripts/            backup.sh, restore.sh, export-workflows.sh, import-workflows.sh,
+                    check-workflows.sh (Gmail send only in sc.mail, YouTube writes only in sc.publish)
 data/  backups/     git-ignored
 docs/PLAN.md
 ```
@@ -1001,18 +1133,18 @@ Each milestone ends with a check that can be seen working.
 
 | # | Build | Done when |
 |---|---|---|
-| M0 | Accounts + infra | Bot Gmail made; Drive folder shared with owner; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL` |
-| M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled |
-| M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human` |
-| M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout) |
-| M4 | renderer | Renderer tests pass; `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
-| M5 | `sc.render` | Video on Drive, local copy gone, slot assigned, mail with link; a video note re-renders into the same Drive file |
-| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone |
-| M7 | `sc.ask_master`, `sc.master` | `sc.ask_master.test` passes; a weak fixture script gets `redo` and is rewritten once; a forced render error goes `triage` → `retry` → success; a step that keeps failing ends `failed` + `ALERT` with the diagnosis; a third intervention is refused; with the `Anthropic` credential set to a bad key the pipeline still runs (reviews logged as skipped, `triage` → `failed` after 6 h); the brief arrives only on a day with actions |
+| M0 | Accounts + infra | Bot Gmail made; Drive folder shared with owner; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id |
+| M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert`, `sc.mail` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled; `exclude_provider` skips that provider; `sc.mail` delivers to `OWNER_EMAIL` and throws (sends nothing) with `OWNER_EMAIL` empty or holding two addresses |
+| M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human`; a Scout output with an invented url or a `primary_url` on an unrelated host is cut by the url check |
+| M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
+| M4 | renderer | Renderer tests pass (url-check test included); `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
+| M5 | `sc.render` | Video on Drive, local copy gone, slot assigned, mail with link; a video note re-renders into the same Drive file; `APPROVE` + notes on a video re-renders and goes `approved`; Ollama is unloaded during the render (`ollama ps` empty) |
+| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job |
+| M7 | `sc.ask_master`, `sc.master` | `sc.ask_master.test` passes; a weak fixture script gets `redo` and is rewritten once; a forced render error goes `triage` → `retry` → success; a step that keeps failing ends `failed` + `ALERT` with the diagnosis; a third intervention is refused; with the `Anthropic` credential set to a bad key the pipeline still runs (reviews logged as skipped, `triage` jobs keep `triage_from`, keep `attempts = 0` and go `failed` 6 h after `triage_at`); the brief arrives only on a day with actions |
 | M8 | `sc.schedule`, metrics | `metrics` rows appear at 24 h / 48 h / 7 d for live videos; with < 12 videos the slots rotate; with fixture metrics `sc.schedule` writes a valid week, changes ≤ 2 days and never moves an assigned slot |
 | M9 | `sc.diagnose`, `tests/agents/` | Manual run mails a report with every agent × provider tested; a fixture with a planted bad fact fails a weakened Checker prompt; a fake candidate id is never called; setting one chain to a paid model puts the warning in the first line; with a bad `Anthropic` key the report still arrives with code results only |
-| M10 | Hardening | Pull the network, kill containers, reboot the Mac mid-render: every job recovers. Backup restore works. **7-day dry run** on a separate test channel with 1-hour timeouts |
-| M11 | Go live | Switch to the real channel. After the audit passes: `PUBLISH_MODE=auto`, watch 3 days |
+| M10 | Hardening | Pull the network, kill containers, reboot the Mac mid-render: every job recovers, no job is rendered twice. A render that runs past 80 min is killed and its job claimed again after 90 min. Backup restore works. **7-day dry run** on a separate test channel (`CHANNEL_HANDLE` = the test channel's handle) with 1-hour timeouts |
+| M11 | Go live | Switch the `YouTube Channel` credential and `CHANNEL_HANDLE` to the real channel together (either one alone is refused by `sc.channel`). After the audit passes: `PUBLISH_MODE=auto`, watch 3 days |
 
 ## 15. Risks and limits
 
@@ -1020,14 +1152,17 @@ Each milestone ends with a check that can be seen working.
 |---|---|
 | YouTube audit refused or slow | Stay in `manual` mode (≈ 5 min every 3 days). Everything else stays automatic |
 | Wrong facts published unseen | Sourced-facts-only writing, a separate-model Checker, auto-approve only on a clean check, sources in every description, `CANCEL` any time before the slot |
-| Free-tier limits or model names change | Three-provider chain per agent; models set in `.env`; ~10 calls per video is far below free limits |
+| Free-tier limits or model names change | Three-provider chain per agent; models set in `.env`; daily limits checked at M0 (≥ 60 a day needed) and weekly in the diagnosis; a daily-quota 429 moves the chain to the next provider, Ollama last. Reported Gemini Flash free limits have been cut sharply before, so this is a real risk, not a theoretical one |
+| Mail sent to the wrong person | One Gmail Send node in the whole system (`sc.mail`), recipient fixed to `OWNER_EMAIL`, no recipient input; `check-workflows.sh` blocks any other send node |
+| Video uploaded to the wrong channel | `sc.channel` checks the credential's channel against `CHANNEL_HANDLE` before every write and checks each upload's `channelId`; videos on other channels are never updated or deleted |
+| A planted url (in a news page or model output) used to reach the Mac's own services | Scout urls must be from the candidate list; screenshot urls checked in n8n and again in the renderer (https, public addresses only, every Playwright request checked) |
 | Gemini free tier may use prompts for training | Only public news text goes in; no private data |
 | Topics stale by publish day | 7-day shelf-life rule in Scout |
 | Monetization refused as "inauthentic content" | One sourced idea per video, varied visuals, human review possible; channel still works without monetization |
 | Copyright | Pexels, own cards, screenshots of official pages only, Audio Library music |
-| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender; commands parsed in code; mail text reaches agents only as tagged data. (Sender spoofing is blocked by Gmail's SPF/DMARC checks on gmail.com) |
+| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` and `dkim=pass` for its domain in `Authentication-Results` (a forged From fails this); commands parsed in code; mail text reaches agents only as tagged data |
 | Mac failure | 3-day buffer; nightly backups; whole stack restores from git + `backups/` |
-| Google OAuth token revoked | Workflows fail → `sc.error` → `ALERT` within the hour |
+| Google OAuth token revoked | Steps fail → jobs reach `triage`/`failed` and `sc.error` sends `workflow_failing` → `ALERT` within the hour. If the Gmail token itself is revoked no mail can go out: `sc.alert` also writes the alert to `alerts` and the n8n execution log, the job states stop advancing, and the Master brief (once mail works again) lists what happened |
 | Anthropic API down, spend limit hit or key revoked | The Master is optional: without it reviews are skipped and failures go to `failed` + `ALERT` as before; `master_down` alert after 24 h. Spend limit in the Console caps the bill |
 | Master overreach or a bad Master call | Fixed action list applied by guarded SQL; JSON schema on every reply (checked in code for `diagnose_research`); no tools except read-only web search/fetch in the weekly research, so no database, mail, YouTube, file or shell access; cannot pass a Checker fail or undo an owner command; max 2 interventions per job; every decision logged and in the brief |
 | A web page plants instructions or a fake model in the diagnosis research | Fixed domain list; pages are data in the prompt; the output can only become report text; candidate ids are called only if the provider's own model list has them; the diagnosis changes nothing by itself |
@@ -1042,8 +1177,12 @@ Each milestone ends with a check that can be seen working.
 | `SCHEDULE_CANDIDATES` | `12:00,15:00,18:00,21:00` (in `TZ`; set for where the audience lives) |
 | Scheduler cold start | rotate candidates until 12 videos are published |
 | `MASTER_MODEL` | `claude-opus-5-5` |
-| `MASTER_EFFORT` | `high` |
-| Anthropic spend limit | $25 a month (set in the Console) |
+| `OWNER_EMAIL` | required: the only address mail is ever sent to |
+| `CHANNEL_HANDLE` | required, e.g. `@shortcircuittech`: the only channel videos are uploaded to |
+| `MASTER_EFFORT` | `medium` (reviews and daily review; triage and diagnosis always `high`) |
+| Anthropic spend limit | $40 a month (set in the Console) |
+| Job lock / run timeout | 90 min / 80 min (`EXECUTIONS_TIMEOUT`) |
+| Lost-mail re-send | after 10 min with `outbox` set |
 | Weekly diagnosis | Sunday 05:00, report every week |
 | Diagnosis web use | ≤ 10 searches + ≤ 10 fetches, fixed domain list |
 | Candidate models tested per week | 3 |
