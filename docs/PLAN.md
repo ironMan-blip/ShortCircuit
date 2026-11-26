@@ -40,6 +40,12 @@ gets a monthly spend limit (e.g. $40) so a loop can never run up a bill.
   mismatch nothing is written and an `ALERT` is sent. `scripts/check-workflows.sh` also fails
   if a YouTube write node appears outside `sc.publish`.
 
+**Write both exactly.** `OWNER_EMAIL` is the address exactly as it appears in the owner's
+mail (`From` is compared to it character for character). `CHANNEL_HANDLE` is the handle
+exactly as the channel page shows it, `@` included. The app never corrects either value: a
+wrong one is a setting error, so it stops (mail, uploads) and alerts instead of guessing.
+`.env.example` shows both forms.
+
 **Changing them.** Both are read from `$env` at the moment they are used (every send, every
 YouTube check, every inbox poll); nothing copies them into workflows or job rows. To change
 one: **edit and save `.env`; nothing else.** n8n only loads `.env` when its container is
@@ -49,8 +55,9 @@ created (a plain `restart` keeps the old values), so a `launchd` agent runs
 and renaming it over the old one, which a path watch can miss. Each run hashes `.env` and
 compares it with the hash it last applied (`data/.env.applied.sha256`); same hash → exit at
 once, so the timer costs nothing. A changed hash →
-1. Validates the file first: `OWNER_EMAIL` is exactly one address, `CHANNEL_HANDLE`
-   matches `^@[A-Za-z0-9._-]{3,30}$` (a missing `@` is added), every required key is set.
+1. Validates the file first, and never rewrites a value: `OWNER_EMAIL` is exactly one
+   address, `CHANNEL_HANDLE` matches `^@[A-Za-z0-9._-]{3,30}$` (with the `@`, no spaces),
+   every required key is set.
    Invalid → a macOS notification says which line is wrong, and n8n keeps running with the
    old values (a typo never reaches the pipeline). The rejected hash is saved
    (`data/.env.rejected.sha256`) so the 60 s timer does not repeat the notification; the
@@ -1105,12 +1112,10 @@ or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
    gmail_message_id = $m WHERE id = $id`.
 
 **`sc.channel`** — the channel guard (§1). Output `{ok, channel_id}` or `{ok: false, reason}`.
-0. Code: normalise `CHANNEL_HANDLE`: trim spaces, add a leading `@` if missing, check
-   `^@[A-Za-z0-9._-]{3,30}$` (else `ok: false`, `bad_handle` + alert). The API accepts the
-   handle with or without `@` (channels.list docs). The docs do not say whether `forHandle`
-   ignores letter case, so the handle is sent exactly as written in `.env` (copy it from
-   the channel page); M0 checks other cases, and the alert for `handle_not_found` says to
-   check the case. Only the resolved channel ids are compared after that.
+0. Code: `CHANNEL_HANDLE` is used **exactly as written** in `.env`; nothing is trimmed,
+   added or re-cased. It must match `^@[A-Za-z0-9._-]{3,30}$` (else `ok: false`,
+   `bad_handle` + alert). A wrong handle is the owner's error to fix in `.env`; the
+   `handle_not_found` alert says so and shows the value as written.
 1. HTTP Request (`YouTube Channel`): `channels.list?part=id&forHandle=<handle>` (url-encoded)
    → the handle's channel id (none → `ok: false`, `handle_not_found` + alert naming the
    handle as sent).
@@ -1228,7 +1233,7 @@ Each milestone ends with a check that can be seen working.
 
 | # | Build | Done when |
 |---|---|---|
-| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed; saving `.env` with a bad `OWNER_EMAIL` gives a notification and leaves n8n untouched; a good change saved from the editor actually used (and one written with `mv` over the file) is applied within 2 min; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id (tried with and without the `@`; also in other letter case, and the result noted in `.env.example`) |
+| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed; saving `.env` with a bad `OWNER_EMAIL` gives a notification and leaves n8n untouched; a good change saved from the editor actually used (and one written with `mv` over the file) is applied within 2 min; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id |
 | M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert`, `sc.mail` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled; `exclude_provider` skips that provider; `sc.mail` delivers to `OWNER_EMAIL` and throws (sends nothing) with `OWNER_EMAIL` empty or holding two addresses |
 | M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human`; a Scout output with an invented url or a `primary_url` on an unrelated host is cut by the url check |
 | M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
