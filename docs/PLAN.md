@@ -40,6 +40,25 @@ gets a monthly spend limit (e.g. $40) so a loop can never run up a bill.
   mismatch nothing is written and an `ALERT` is sent. `scripts/check-workflows.sh` also fails
   if a YouTube write node appears outside `sc.publish`.
 
+**Changing them.** Both are read from `$env` at the moment they are used (every send, every
+YouTube check, every inbox poll); nothing copies them into workflows or job rows. To change
+one: edit `.env`, then `docker compose up -d n8n` (this recreates the container so the new
+`.env` is loaded; a plain `restart` keeps the old values). From then on:
+- **New `OWNER_EMAIL`:** every mail goes to the new address, including mails still waiting
+  in an `outbox`. Only replies from the new address are acted on; replies from the old one
+  are ignored like any stranger's. On start, `sc.config` (§10.6) shares the Drive folder with
+  the new address, removes the old address's access and mails the new address a
+  "ShortCircuit now mails you here" note listing the jobs waiting for review.
+- **New `CHANNEL_HANDLE`, same channel** (the handle was renamed): `sc.channel` resolves the
+  new handle to the same channel id, so nothing else changes.
+- **New `CHANNEL_HANDLE`, different channel:** re-connect the `YouTube Channel` credential
+  to the new channel too (§10.2). Until both match, `sc.channel` refuses every write and
+  alerts. New uploads go to the new channel. Videos already on the old channel are left
+  there to publish as scheduled: each job remembers the channel it was uploaded to
+  (`jobs.channel_id`), and `sc.livecheck` never marks a job on another channel as
+  `cancelled`, and `sc.publish` never deletes from it. Jobs still in `awaiting_upload` get a
+  new upload pack naming the new handle.
+
 Why a separate bot account: if the pipeline sent mail from the owner's own address, its own
 outgoing mails would look exactly like owner replies and the inbox router would act on them.
 With a bot account the rule is simple: **the bot acts only on mail from `OWNER_EMAIL`**.
@@ -638,6 +657,7 @@ CREATE TABLE jobs (
   drive_file_id    text,
   drive_link       text,
   youtube_id       text,
+  channel_id       text,                         -- channel the video was uploaded to
   gmail_thread_id  text,
   gmail_message_id text,                         -- last bot mail sent by sc.mail (audit)
   created_at       timestamptz NOT NULL DEFAULT now(),
@@ -649,6 +669,10 @@ CREATE TABLE replies (                           -- every owner reply, kept for 
   gmail_message_id text PRIMARY KEY,             -- dedupe: a mail is processed once
   job_id int REFERENCES jobs(id),
   command text, body text, received_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE config_seen (                       -- last OWNER_EMAIL / CHANNEL_HANDLE / channel id seen, for sc.config
+  key text PRIMARY KEY, value text, changed_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE alerts (                            -- one alert per problem per day
@@ -821,6 +845,7 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 | `sc.alert` | Called | — | — | — |
 | `sc.mail` | Called | — | — | — (sends to `OWNER_EMAIL` only; clears `outbox`) |
 | `sc.channel` | Called | — | — | — (checks the credential's channel is `CHANNEL_HANDLE`) |
+| `sc.config` | n8n Trigger (instance started) + Manual | — | — | `awaiting_upload` packs re-sent (on a channel change) |
 | `sc.error` | Error Trigger | — | — | clears lock, saves error |
 | `sc.llm` | Called | — | (all workers) | — |
 | `sc.ask_master` | Called | — | Master | — (writes `master_log`) |
@@ -945,10 +970,12 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
   the node lacks, like `containsSyntheticMedia`, are set by an HTTP Request `videos.update`
   with the `YouTube Channel` credential) → Code: the upload response's
   `snippet.channelId` must equal `sc.channel`'s `channel_id` (else `ALERT`
-  `channel_mismatch`, job to fail branch) → save `youtube_id` → `scheduled`.
+  `channel_mismatch`, job to fail branch) → save `youtube_id` and `channel_id` → `scheduled`.
   `cancelled` with a `youtube_id` → `sc.channel` → `videos.list?id=<youtube_id>` and check its
   `snippet.channelId` is that channel → YouTube **Delete** → clear `youtube_id`. A video on
-  any other channel is never updated or deleted.
+  any other channel is never updated or deleted: if the job's `channel_id` is an older
+  channel, `sc.alert` (`cancel_old_channel:SC-0042`, "delete it in Studio on the old
+  channel") and clear `youtube_id`, so it is not retried.
 - `manual` mode: Postgres: all `approved`. Send the pack if count ≥ 3 or the earliest
   `slot_at` < now + 36 h → finish (`awaiting_upload`, `outbox` = the pack: "Upload to
   `CHANNEL_HANDLE`", and per video: Drive link, title, description, tags incl. `sc-####`,
@@ -964,9 +991,13 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 3a. Code: drop any video whose `snippet.channelId` is not `channel_id`; match the rest to
    jobs by tag `sc-####` (title as fallback).
 4. Postgres updates:
-   - `awaiting_upload` found with a `publishAt` → `scheduled`, save `youtube_id`.
+   - `awaiting_upload` found with a `publishAt` → `scheduled`, save `youtube_id` and
+     `channel_id`.
    - `scheduled` and now `public` → `live`.
-   - `scheduled` but gone from the channel → `cancelled`.
+   - `scheduled` but gone from the channel → `cancelled` — **only if the job's
+     `channel_id` is the current `channel_id`**. A job on an older channel (after a
+     `CHANNEL_HANDLE` change) cannot be seen from here: it is left alone and set to `done`
+     24 h after its slot (no metrics), and its Drive file is deleted then.
 5. For `live` jobs: Google Drive **delete** (permanently) → `done`.
 6. Any `slot_at` passed > 1 h ago without a live video → `sc.alert` (`slot_missed:<date>`).
 7. For `live`/`done` jobs whose slot passed 24 h, 48 h or 168 h ago: insert into
@@ -1054,6 +1085,23 @@ or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
    credential is for another channel; nothing was uploaded") and `ok: false`.
    (2 quota units a call.)
 
+**`sc.config`** — applies a changed `OWNER_EMAIL` or `CHANNEL_HANDLE` (§1). Runs when n8n
+starts (*n8n Trigger*, event "Instance started", so after every `docker compose up -d`) and
+by hand.
+1. Postgres: read `config_seen`. First run (empty) → just store the current values, stop.
+2. `OWNER_EMAIL` changed → Google Drive (`Drive Bot`): share `ShortCircuit/` with the new
+   address as Viewer, then remove the old address's permission (never shared publicly) →
+   `sc.mail` "ShortCircuit now mails you here" with the jobs in `script_review`,
+   `needs_human` and `video_review` and their Drive links → in those jobs set
+   `review_deadline = now() + 12 h` (48 h for `needs_human`), so the new address gets a full
+   review window.
+3. `CHANNEL_HANDLE` changed → `sc.channel`. `ok: false` → stop (it has alerted; `sc.config`
+   runs again on the next start, or by hand once the credential is re-connected). `ok` and
+   the channel id differs from the stored one → jobs in `awaiting_upload` back to
+   `approved`, so `sc.publish` sends a new pack naming the new handle.
+4. Postgres: upsert `config_seen` (only for what step 2 or 3 finished), log the change in
+   `master_log` (task `config`) so the Master brief mentions it.
+
 **`sc.error`** — Error Trigger → Code (workflow, node, message) → if the same workflow failed
 3 times in an hour → `sc.alert` (`workflow_failing:<name>`). It does not touch jobs (§10.3).
 
@@ -1139,7 +1187,7 @@ Each milestone ends with a check that can be seen working.
 | M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
 | M4 | renderer | Renderer tests pass (url-check test included); `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
 | M5 | `sc.render` | Video on Drive, local copy gone, slot assigned, mail with link; a video note re-renders into the same Drive file; `APPROVE` + notes on a video re-renders and goes `approved`; Ollama is unloaded during the render (`ollama ps` empty) |
-| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job |
+| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job; **change test:** new `OWNER_EMAIL` + `docker compose up -d n8n` → the new address gets the note and Drive access, the old one loses it, the next review mail goes to the new address and a reply from the old one is ignored; new `CHANNEL_HANDLE` + re-connected credential → the next upload lands on the new channel, a video already scheduled on the old channel stays there and its job ends `done`, not `cancelled` |
 | M7 | `sc.ask_master`, `sc.master` | `sc.ask_master.test` passes; a weak fixture script gets `redo` and is rewritten once; a forced render error goes `triage` → `retry` → success; a step that keeps failing ends `failed` + `ALERT` with the diagnosis; a third intervention is refused; with the `Anthropic` credential set to a bad key the pipeline still runs (reviews logged as skipped, `triage` jobs keep `triage_from`, keep `attempts = 0` and go `failed` 6 h after `triage_at`); the brief arrives only on a day with actions |
 | M8 | `sc.schedule`, metrics | `metrics` rows appear at 24 h / 48 h / 7 d for live videos; with < 12 videos the slots rotate; with fixture metrics `sc.schedule` writes a valid week, changes ≤ 2 days and never moves an assigned slot |
 | M9 | `sc.diagnose`, `tests/agents/` | Manual run mails a report with every agent × provider tested; a fixture with a planted bad fact fails a weakened Checker prompt; a fake candidate id is never called; setting one chain to a paid model puts the warning in the first line; with a bad `Anthropic` key the report still arrives with code results only |
@@ -1183,6 +1231,7 @@ Each milestone ends with a check that can be seen working.
 | Anthropic spend limit | $40 a month (set in the Console) |
 | Job lock / run timeout | 90 min / 80 min (`EXECUTIONS_TIMEOUT`) |
 | Lost-mail re-send | after 10 min with `outbox` set |
+| Changing `OWNER_EMAIL` / `CHANNEL_HANDLE` | edit `.env`, `docker compose up -d n8n`; `sc.config` applies it (§1) |
 | Weekly diagnosis | Sunday 05:00, report every week |
 | Diagnosis web use | ≤ 10 searches + ≤ 10 fetches, fixed domain list |
 | Candidate models tested per week | 3 |
