@@ -53,25 +53,43 @@ created (a plain `restart` keeps the old values), so a `launchd` agent runs
 `scripts/apply-env.sh` when the file changes (`WatchPaths`) **and every 60 s**
 (`StartInterval`). The timer is the safety net: many editors save by writing a new file
 and renaming it over the old one, which a path watch can miss. Each run hashes `.env` and
-compares it with the hash it last applied (`data/.env.applied.sha256`); same hash → exit at
-once, so the timer costs nothing. A changed hash →
-1. Validates the file first, and never rewrites a value: `OWNER_EMAIL` is exactly one
-   address, `CHANNEL_HANDLE` matches `^@[A-Za-z0-9._-]{3,30}$` (with the `@`, no spaces),
-   every required key is set.
+compares it with the hash it last applied (`data/.env.applied.sha256`) and the hash it
+last refused (`data/.env.rejected.sha256`); a match with either → exit at once, so the
+timer costs nothing. n8n never reads `.env` itself: its `env_file` is `data/.env.live`
+(§11), a copy that only this script writes, so nothing unchecked can reach n8n. (Run the
+script once at install to create it.) A changed hash →
+1. Copies `.env` to `data/.env.pending` and from here on works only on that copy, so a
+   save made during the run cannot slip in unchecked; that save gets its own run later.
+2. Validates the copy, and never rewrites a value:
+   - `OWNER_EMAIL` is exactly one address, and its domain publishes DMARC
+     (`dig +short TXT _dmarc.<domain>` returns a `v=DMARC1` record). Without DMARC no
+     reply can ever pass `sc.inbox` (§10.6) while silence still approves, so a `CANCEL`
+     would be ignored.
+   - `CHANNEL_HANDLE` matches `^@[A-Za-z0-9._-]{3,30}$` (with the `@`, no spaces).
+   - Every required key is set. Keys with fixed values hold one of them (`PUBLISH_MODE`
+     `manual|auto`, `MASTER_EFFORT` `low|medium|high`). Each `LLM_CHAIN_*` is a non-empty
+     comma list of `gemini`, `groq` or `ollama`, each optionally `:<model id>`. `TZ` is
+     a zone in the zoneinfo database. `PUBLISH_TIME` and `SCHEDULE_CANDIDATES` are `HH:MM`.
+   - Keys that a reload cannot apply are unchanged from `data/.env.live`:
+     `N8N_ENCRYPTION_KEY` (a new key makes every stored credential unreadable) and
+     `POSTGRES_*` (Postgres keeps the password it was created with). Changing them is a
+     manual migration, not a save.
    Invalid → a macOS notification says which line is wrong, and n8n keeps running with the
-   old values (a typo never reaches the pipeline). The rejected hash is saved
-   (`data/.env.rejected.sha256`) so the 60 s timer does not repeat the notification; the
-   next save changes the hash and is checked again.
-2. Waits until no job is locked (polls Postgres every minute, at most 90 min), so a render
-   is not killed halfway.
-3. Runs `docker compose up -d n8n`, which recreates n8n with the new values.
-4. Checks that n8n is healthy again and that `$env` inside it shows the new values; then
-   writes the new hash. If not, a macOS notification, and the hash is not written, so the
-   next run tries again.
+   old values (a typo never reaches the pipeline). The hash is saved as rejected so the
+   60 s timer does not repeat the notification; the next save changes the hash and is
+   checked again.
+3. Waits until no job is locked (polls Postgres every minute, at most 90 min), so a render
+   is not killed halfway. Still busy after 90 min → exits without saving any hash; the
+   next run starts over.
+4. Moves the copy over `data/.env.live` (keeping the old one as `data/.env.live.prev`) and
+   runs `docker compose up -d n8n`, which recreates n8n with the new values.
+5. Checks that n8n is healthy again and that `$env` inside it shows the new values; then
+   saves the copy's hash as applied. If not: puts `data/.env.live.prev` back, runs
+   `up -d n8n` again so the old values are live, sends one macOS notification, and saves
+   the hash as rejected (no notification every 60 s; the next save is tried again).
 A lock directory (`mkdir data/.apply-env.lock`, atomic; macOS has no `flock`) keeps two
 runs from overlapping, and the script removes it on exit (`trap`); a lock older than 2 h
-is from a crashed run and is removed. A save made while a run is waiting changes the
-hash, so the next run applies it.
+is from a crashed run and is removed (the longest run waits 90 min).
 
 From then on:
 - **New `OWNER_EMAIL`:** every mail goes to the new address, including mails still waiting
@@ -157,8 +175,8 @@ flowchart LR
     N8N -->|HTTP| SRC[Tech sources<br/>HN, GitHub, RSS, Reddit]
 ```
 
-Key design choice: **the `jobs` table is the queue.** Only the Gmail trigger reacts to events.
-Every other step is a small worker workflow that runs on a timer, claims one job in a given
+Key design choice: **the `jobs` table is the queue.** Nothing waits for events: even the
+inbox is a timer that searches Gmail. Every step is a small worker workflow that runs on a timer, claims one job in a given
 status, does its step and moves the job to the next status. This gives, for free:
 - Restart safety: after a reboot, unfinished jobs are simply picked up again.
 - Retries: a failed step leaves the job in place; the next run tries again (max 3).
@@ -371,7 +389,8 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
   4. **Daily review** (21:00) — input: jobs per status, last 24 h of errors, `master_log`,
      per-agent stats (provider used, fallback rate, Checker flag rate, owner change
      requests, render warnings), buffer size, Scheduler decisions and metrics. Checks that
-     every agent did its job and its outputs are good. May `retry` or `reject` stuck jobs.
+     every agent did its job and its outputs are good. May `retry` or `reject` jobs stuck
+     in an active state (`failed` is final).
      Writes the Master brief.
   5. **Weekly diagnosis** (Sunday) — tests every worker, researches better local or free
      models, writes the weekly report. See §4.9.
@@ -502,9 +521,13 @@ contact_sheet}` (synchronous, ≤ 10 min). `transcript` is the whisper word list
      first (trust boundary: the url comes from web text):** `https` only, a hostname with a
      dot (no single-label Docker names like `n8n` or `postgres`), no IP literal, and the
      hostname must resolve only to public addresses (no loopback, private, link-local or
-     `host.docker.internal`). Playwright routes every request (redirects, sub-resources)
-     through the same check and aborts the ones that fail. A failed check → that scene
-     becomes a `card` and a warning is returned.
+     `host.docker.internal`). Chromium sends every request (redirects, sub-resources)
+     through a small proxy inside the renderer (`--proxy-server=127.0.0.1:8899`,
+     `proxy.py`). The proxy resolves the hostname itself, checks every address it gets,
+     and connects to the address it checked. Nothing resolves the name a second time, so
+     DNS rebinding (public address for the check, private one for the connection) cannot
+     get through. A failed check on the page url → that scene becomes a `card` and a
+     warning is returned; a failed sub-request is simply refused.
 4. **Captions:** word-by-word highlighted ASS subtitles, burned in.
 5. **Music:** a random track of `music_mood`, ducked under the voice (sidechain).
 6. **Encode:** 1080×1920, 30 fps, H.264 CRF 18 (max 10 Mbps), AAC 192 kbps, loudness −14 LUFS.
@@ -515,7 +538,8 @@ Other endpoints: `GET /health`, `DELETE /jobs/{id}` (removes local files), `POST
 Tests: `renderer/tests/` renders a 2-scene fixture plan offline (fixture clip + fixture WAV)
 and asserts duration, streams and loudness; a url-check test asserts that `http://…`,
 `https://n8n:5678`, `https://10.0.0.1`, `https://localhost` and a host that resolves to a
-private address are all refused.
+private address are all refused; a rebinding test (a stub resolver that gives a public
+address first and `127.0.0.1` after) asserts the proxy never connects to `127.0.0.1`.
 
 Brand assets (font, colours, card template, outro frame) live in `assets/brand/`.
 Music: tracks downloaded once by hand from the YouTube Audio Library into
@@ -609,7 +633,7 @@ key → `auth`, a wrong model id → `invalid`.
 - **Slot assignment** happens when a video is first rendered: the earliest free day whose
   slot (that weekday's time) is at least 48 h away. That leaves the 12 h review, the upload
   and a safety margin. A Scheduler change affects only slots assigned after it.
-  A day freed by `REJECT`/`CANCEL` is taken by the next render if it is still ≥ 48 h away,
+  A day freed by `REJECT`, `CANCEL` or a failed job is taken by the next render if it is still ≥ 48 h away,
   so later videos never move (which matters because in `manual` mode the owner has already
   scheduled them in Studio). A day freed less than 48 h ahead stays **empty**: that day has
   no Short. It is not an error (no `slot_missed` alert, because the cleared slot belongs to
@@ -617,7 +641,8 @@ key → `auth`, a wrong model id → `invalid`.
 - **Buffer** = jobs with a slot in the future (`video_review`, `video_editing`, `approved`,
   `awaiting_upload`, `scheduled`). **Pipeline** = jobs before render (`new`, `script_review`,
   `needs_human`, `revising`, `script_approved`).
-- **Producer** (08:00 daily): while `buffer + pipeline < 4`, insert a `new` job, at most 2 a day.
+- **Producer** (08:00 daily): while `buffer + pipeline < BUFFER_TARGET` (default 4), insert a
+  `new` job, at most 2 a day.
   Steady state: 3 scheduled videos + 1 in the pipeline, so 1 new script a day.
 - **Bootstrap:** day 1 and day 2 start 2 jobs each. The first video goes live on day 3–4.
 - **Freshness:** Scout only picks topics with a shelf life of 7+ days (§4.1), because a
@@ -682,6 +707,7 @@ CREATE TABLE jobs (
   review_deadline  timestamptz,                  -- auto-approve / drop time
   slot_at          timestamptz UNIQUE,
   slot_date        date UNIQUE,                  -- slot day in TZ: one video per day
+  render_started_at timestamptz,                 -- set while the renderer runs (Ollama kept unloaded, §10.4)
   triage_from      text,                         -- status the job failed in
   triage_at        timestamptz,                  -- when it entered triage (6 h timeout)
   master_rounds    int  NOT NULL DEFAULT 0,      -- Master interventions (max 2)
@@ -704,7 +730,7 @@ CREATE TABLE replies (                           -- every owner reply, kept for 
   command text, body text, received_at timestamptz DEFAULT now()
 );
 
-CREATE TABLE config_seen (                       -- last OWNER_EMAIL / CHANNEL_HANDLE / channel id seen, for sc.config
+CREATE TABLE config_seen (                       -- last OWNER_EMAIL / Drive-shared address / CHANNEL_HANDLE / channel id, for sc.config
   key text PRIMARY KEY, value text, changed_at timestamptz DEFAULT now()
 );
 
@@ -736,8 +762,10 @@ CREATE TABLE master_log (                        -- every Master decision, for t
 ```
 
 `slot_date UNIQUE` makes double-booking a day impossible (`slot_at` alone would not, since
-times differ per weekday). When a job is rejected or cancelled, the slot is cleared
-(`slot_at` and `slot_date` set to `NULL`), which frees the day.
+times differ per weekday). When a job is rejected, cancelled or failed (every path to
+`failed`: `sc.timeouts`, `sc.master`), the slot is cleared (`slot_at` and `slot_date` set
+to `NULL`), which frees the day. A dead job never keeps a day booked or raises
+`slot_missed`.
 
 ## 10. The n8n side
 
@@ -767,7 +795,7 @@ Port `127.0.0.1:5678:5678`: bound to localhost only.
 
 | Credential | Type | Account | Used by |
 |---|---|---|---|
-| `Gmail Bot` | Gmail OAuth2 | Bot | Gmail Trigger, Gmail nodes |
+| `Gmail Bot` | Gmail OAuth2 | Bot | Gmail nodes (`sc.inbox` search, `sc.mail` send) |
 | `Drive Bot` | Google Drive OAuth2 | Bot | Google Drive nodes |
 | `YouTube Channel` | YouTube OAuth2 | Channel owner | YouTube node, HTTP Request (predefined credential) |
 | `SC Postgres` | Postgres | db `shortcircuit` | Postgres nodes |
@@ -786,8 +814,8 @@ credentials: the renderer holds the Pexels key in its own env.
 - **Names:** `sc.<name>`. Exported to `workflows/sc.<name>.json` and committed.
 - **Settings:** Error workflow = `sc.error`. Timezone = default. For timer workers:
   "Save successful executions" = off, "Save failed executions" = on.
-- **Worker pattern** (all timer workflows except `sc.produce`, `sc.timeouts` and the
-  triage part of `sc.master`):
+- **Worker pattern** (all timer workflows except `sc.produce`, `sc.inbox`, `sc.timeouts`
+  and the triage part of `sc.master`):
   1. *Schedule Trigger* (interval).
   2. *Postgres — claim:*
      ```sql
@@ -834,6 +862,10 @@ name its model, `groq:<model id>`; without one the provider's `*_MODEL` setting 
 `sc.diagnose` passes one-entry chains to test a single provider or a candidate model.
 `exclude_provider` removes that provider from the chain (the Checker passes
 `jobs.providers.writer`, or `.editor` after an edit, §4); an empty chain is an error.
+While a render runs (any job with `render_started_at` in the last 20 min), `ollama` entries
+are skipped too, so no other workflow reloads the 6 GB model at the renderer's peak (§11).
+A chain left empty by that skip is an error like any other, so the normal retry runs
+after the render.
 
 Nodes:
 1. *Execute Workflow Trigger* (input fields defined).
@@ -865,7 +897,7 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 |---|---|---|---|---|
 | `sc.produce` | Schedule 08:00 | — | — | inserts `new` |
 | `sc.create` | Every 2 min | `new` | Scout, Writer, Checker, Master | `script_review` / `needs_human` |
-| `sc.inbox` | Gmail Trigger, every 1 min | — (event) | — | `revising`, `script_approved`, `video_editing`, `approved`, `rejected`, `cancelled` |
+| `sc.inbox` | Every 1 min (Gmail search) | — (mail) | — | `revising`, `script_approved`, `video_editing`, `approved`, `rejected`, `cancelled` |
 | `sc.revise` | Every 2 min | `revising` | Editor, Checker | `script_review` / `needs_human` |
 | `sc.render` | Every 2 min | `script_approved`, `video_editing` | Editor, Checker, Director, Cutter, Master | `video_review` / `approved` |
 | `sc.timeouts` | Every 15 min | — | — | auto-approves, drops, `triage`, fails; re-sends outbox |
@@ -888,7 +920,7 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 **`sc.produce`** — keeps the buffer full
 1. Schedule Trigger 08:00.
 2. Postgres: count buffer and pipeline (§6).
-3. Code: `n = min(2, 4 - buffer - pipeline)`; stop if `n ≤ 0`.
+3. Code: `n = min(2, $env.BUFFER_TARGET - buffer - pipeline)`; stop if `n ≤ 0`.
 4. Postgres: insert `n` rows `status='new'`.
 5. If `buffer < 2` → `sc.alert` (`buffer_low`).
 
@@ -921,30 +953,44 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
     (script, sources, checker result, how to reply).
 11. `sc.mail` (job id).
 
-**`sc.inbox`** — the only event workflow
-1. Gmail Trigger (`Gmail Bot`), poll every minute, filter
-   `from:OWNER_EMAIL is:unread subject:"[SC-"`, *Simplify* off (full body needed).
+**`sc.inbox`** — owner replies
+1. Schedule Trigger every minute → Gmail **Get Many** (`Gmail Bot`), query
+   `from:OWNER_EMAIL subject:"[SC-" -label:sc/processed -label:sc/ignored newer_than:7d`,
+   *Simplify* off (full body needed). Not the Gmail Trigger: its cursor moves on even when
+   the run fails, which would lose that reply. Here a mail stays in the query until step 6
+   labels it, so a failed run is simply retried the next minute.
 2. Code: check the sender address matches `OWNER_EMAIL` exactly (filter alone is not
    trusted) **and** that the `Authentication-Results` header Gmail added shows
    `dmarc=pass` with `header.from` equal to the domain of `OWNER_EMAIL` (DMARC pass already
    means an aligned DKIM or SPF pass, so a spoofed From fails it while real mail from
-   gmail.com or a custom domain with DMARC passes); otherwise mark read, label `sc/ignored`,
-   stop. An owner domain with no DMARC record can never pass: M0 checks it.
+   gmail.com or a custom domain with DMARC passes). Only the **top** `Authentication-Results`
+   header is read, and its server id must be `mx.google.com`: Gmail adds it last, so it sits
+   above every other copy, and lower copies may have been written by the sender. Otherwise
+   label `sc/ignored`, stop. An owner domain with no DMARC record can never pass:
+   `apply-env.sh` and M0 check it.
    Extract job id from subject; take the text part, cut everything from the first quoted
-   line (`On … wrote:`, `>`, `-----Original`); first word → command; rest → notes.
-3. Postgres: insert into `replies` (`ON CONFLICT DO NOTHING`); no row inserted → already
-   handled → stop.
+   line (`On … wrote:`, `>`, `-----Original`) and from a signature (`-- ` line,
+   `Sent from my …`); trim. Nothing left → label `sc/ignored`, stop (an empty reply is not a
+   change request). First word, upper-cased with trailing punctuation removed (`approve.` =
+   `APPROVE`) → command; rest → notes.
+3. Postgres: the job id must exist (`SC-9999` with no job → label `sc/ignored`, stop).
+   Then steps 3–4 run in **one transaction** (Postgres node, *Query Batching: Transaction*),
+   so a crash can never record a reply without applying it: insert into `replies`
+   (`ON CONFLICT DO NOTHING`); no row inserted → already handled → go to step 6.
 4. Postgres: load job. Switch on `status` × `command` → one guarded update each, e.g.
    `UPDATE jobs SET status='revising', notes=$notes WHERE id=$id AND status IN ('script_review','needs_human')`.
    Approve-with-notes on a script stores the notes and sets `script_approved`.
    Approve-with-notes on a video stores the notes and sets `video_editing`.
    `REJECT`/`CANCEL` also clear the slot.
-5. 0 rows updated (wrong state, e.g. reply to an old mail) → `sc.mail`
-   (`[SC-0042] Not applied`): "SC-0042 is now <status>; your reply was not applied."
+5. 0 rows updated (wrong state, e.g. reply to an old mail) → `sc.mail` with
+   `{subject, html}` (not the job's `outbox`, which may hold a mail still waiting):
+   `[SC-0042] Not applied`, "SC-0042 is now <status>; your reply was not applied."
 6. Gmail: mark as read, add label `sc/processed`.
 
 **`sc.revise`** — script change requests
-1. Claim `revising`. If `round ≥ 3` → `needs_human` with reason "3 rounds used".
+1. Claim `revising`. If `round ≥ 3` → finish as `needs_human` (deadline now + 48 h,
+   `outbox` = `[SC-0042] NEEDS YOU: 3 rounds used`, with the current script) → `sc.mail`,
+   stop. Without the mail, the owner would never hear of the job before it was dropped.
 2. `sc.llm` **Editor** (script + notes + brief) → `sc.llm` **Checker** (`exclude_provider` =
    the Editor's provider).
 3. Finish: save; `round + 1`; `script_review` (12 h) or `needs_human` (48 h); clear `notes`;
@@ -960,21 +1006,26 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 3. Branch:
    - first render: `sc.llm` **Director** → plan.
    - `video_editing`: `sc.llm` **Cutter** (plan + notes). If the notes change narration →
-     **Editor** + **Checker** first, then **Director** on the new script.
+     **Editor** + **Checker** first (`exclude_provider` = the Editor's provider), then
+     **Director** on the new script. Flagged → finish as `needs_human` like step 2. The job
+     keeps its slot and Drive file; an `APPROVE` sends it back through `script_approved`,
+     and a `NEEDS YOU` that runs out frees the slot as in §6.
    Then Code: any `screenshot` scene whose url is not the job's checked `primary_url` (§5a of
    `sc.create`) becomes a `card`.
-3a. HTTP Request `POST host.docker.internal:11434/api/generate {"model": <OLLAMA_MODEL>,
+3a. Postgres: `render_started_at = now()` (from now on `sc.llm` skips Ollama, §10.4). Then
+    HTTP Request `POST host.docker.internal:11434/api/generate {"model": <OLLAMA_MODEL>,
     "keep_alive": 0}` (On Error: continue): unloads Ollama before the render (§11).
-4. HTTP Request `POST renderer:8000/render` (timeout 15 min).
+4. HTTP Request `POST renderer:8000/render` (timeout 15 min). Then Postgres:
+   `render_started_at = NULL` (on the error branch too).
 4a. `sc.ask_master` (`review_video`, `image_path` = the render's `contact_sheet`). `redo` and
-    `master_rounds < 2` → `sc.llm` **Cutter** (plan + Master feedback) → render again
+    `master_rounds < 2` → `sc.llm` **Cutter** (plan + Master feedback) → steps 3a–4 again
     (no second review); `master_rounds + 1`. `ok: false` → continue.
 5. Read/Write Files from Disk: read `/data/jobs/SC-0042/final.mp4`.
-6. Google Drive: **upload** to `ShortCircuit/ready/` (first render) or **update file**
-   (same id, after an edit).
+6. Google Drive: **upload** to `ShortCircuit/ready/` (`drive_file_id` is empty) or **update
+   file** (same id, otherwise).
 7. HTTP Request `DELETE renderer:8000/jobs/SC-0042`.
-8. First render only — Postgres: assign slot (earliest free day whose `schedule` time is
-   ≥ now + 48 h; set `slot_at` and `slot_date`; the `UNIQUE` constraint plus a retry
+8. Only if `slot_date` is empty — Postgres: assign slot (earliest free day whose `schedule`
+   time is ≥ now + 48 h; set `slot_at` and `slot_date`; the `UNIQUE` constraint plus a retry
    handles a race).
 9. Postgres (finish): status `video_review` (deadline now + 12 h) or `approved` (after an
    edit); `outbox` = the mail (Drive link, slot time, script, or the `Updated video` note).
@@ -991,17 +1042,22 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
    - `video_review` past deadline **and `outbox IS NULL`** → `approved`.
    - `needs_human` past deadline and `outbox IS NULL` → `rejected`, slot cleared.
    - `attempts ≥ 3` in any active state **except `triage`** → `triage` (`triage_from =
-     status`, `triage_at = now()`, `attempts = 0`); if `master_rounds ≥ 2` → `failed` +
-     `sc.alert` (`job_failed:SC-0042`) instead.
-   - `triage` with `triage_at` > 6 h ago (Master down) → `failed` + `sc.alert`
-     (`job_failed:SC-0042`). (`updated_at` is not used: claims change it.)
+     status`, `triage_at = now()`, `attempts = 0`); if `master_rounds ≥ 2` → `failed`, slot
+     cleared, + `sc.alert` (`job_failed:SC-0042`) instead.
+   - `triage` with `triage_at` > 6 h ago (Master down) → `failed`, slot cleared, +
+     `sc.alert` (`job_failed:SC-0042`). (`updated_at` is not used: claims change it.)
+   - `render_started_at` > 20 min ago (a crashed render; the render call times out at
+     15 min) → `render_started_at = NULL`, so Ollama is not skipped forever.
    - locked > 90 min → clear the lock (a crashed run; `EXECUTIONS_TIMEOUT` guarantees no
      live run holds it).
 
 **`sc.publish`** — to YouTube (the only workflow with YouTube write nodes)
 - `auto` mode, claim `approved`: `sc.channel` → `ok: false` → fail branch, stop (nothing is
   uploaded). Then Google Drive **download** → YouTube **Upload**
-  (title, description, tags, category 28, privacy `private`, publish at `slot_at`; options
+  (title, description, tags, category 28, privacy `private`, publish at `slot_at`; if
+  `slot_at` is less than 15 min away or already past, which happens when an edit or approval
+  came late, YouTube would refuse that `publishAt`, so upload as `public` now instead, and
+  `master_log` notes the late publish for the brief; options
   the node lacks, like `containsSyntheticMedia`, are set by an HTTP Request `videos.update`
   with the `YouTube Channel` credential) → Code: the upload response's
   `snippet.channelId` must equal `sc.channel`'s `channel_id` (else `ALERT`
@@ -1014,7 +1070,8 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 - `manual` mode: Postgres: all `approved`. Send the pack if count ≥ 3 or the earliest
   `slot_at` < now + 36 h → finish (`awaiting_upload`, `outbox` = the pack: "Upload to
   `CHANNEL_HANDLE`", and per video: Drive link, title, description, tags incl. `sc-####`,
-  slot time) → `sc.mail`. (One pack covers several jobs: the outbox sits on the earliest job.)
+  slot time, or "slot passed: publish now" when `slot_at` is already past) → `sc.mail`.
+  (One pack covers several jobs: the outbox sits on the earliest job.)
 
 **`sc.livecheck`** — confirms, cleans up
 1. Schedule hourly.
@@ -1022,19 +1079,23 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
    channel; `sc.channel` has already alerted).
 3. HTTP Request (`YouTube Channel`): uploads playlist of `channel_id` →
    `playlistItems.list` (last 50) → `videos.list?part=snippet,status,statistics`
-   (≈ 4 quota units a run with step 2).
+   (≈ 4 quota units a run with step 2). Any of these calls fails → stop the run with no job
+   changes: an empty list from an error must never read as "every video is gone".
 3a. Code: drop any video whose `snippet.channelId` is not `channel_id`; match the rest to
    jobs by tag `sc-####` (title as fallback).
 4. Postgres updates:
    - `awaiting_upload` found with a `publishAt` → `scheduled`, save `youtube_id` and
      `channel_id`.
    - `scheduled` and now `public` → `live`.
-   - `scheduled` but gone from the channel → `cancelled` — **only if the job's
-     `channel_id` is the current `channel_id`**. A job on an older channel (after a
+   - `scheduled` but not in the list → `videos.list?id=<youtube_id>` (1 unit) to confirm;
+     only a successful reply with no `items` means it was deleted → `cancelled`, slot
+     cleared — **only if the job's `channel_id` is the current `channel_id`**. A job on an older channel (after a
      `CHANNEL_HANDLE` change) cannot be seen from here: it is left alone and set to `done`
      24 h after its slot (no metrics), and its Drive file is deleted then.
 5. For `live` jobs: Google Drive **delete** (permanently) → `done`.
-6. Any `slot_at` passed > 1 h ago without a live video → `sc.alert` (`slot_missed:<date>`).
+6. Any `slot_at` passed > 1 h ago without a live video, on a job whose `channel_id` is empty
+   or the current `channel_id`, → `sc.alert` (`slot_missed:<date>`). Jobs on an older channel
+   cannot be seen from here, so they are left out (no false alert).
 7. For `live`/`done` jobs whose slot passed 24 h, 48 h or 168 h ago: insert into
    `metrics` (`ON CONFLICT DO NOTHING`, so each snapshot is taken once).
 
@@ -1050,14 +1111,17 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
   - `redo` → `revising` (script states) or `video_editing` (video states), `notes =`
     feedback, prefixed "From the Master:"; any other state → same as `retry`.
   - `reject` → `rejected`, slot cleared (the Producer replaces it).
-  - `fail` → `failed` + `sc.alert` (`job_failed:SC-0042`) with the diagnosis.
+  - `fail` → `failed`, slot cleared, + `sc.alert` (`job_failed:SC-0042`) with the diagnosis.
   Every update also sets `locked_at = NULL`.
   `ok: false` → clear `locked_at` and leave the job for the next tick (`sc.timeouts` ends it
   6 h after `triage_at`).
   Every decision goes to `master_log`.
 - *Daily review* (Schedule 21:00): Postgres snapshot queries (§4.8 input) → `sc.ask_master`
-  (`daily`) → apply `actions` with the same guarded updates (only on jobs in `failed` or
-  stuck > 24 h; anything else is ignored and logged) → `master_log` → if there are
+  (`daily`) → apply `actions` with guarded updates, only on jobs stuck > 24 h in an active
+  state (not `triage`, which has its own path) with `master_rounds < 2`. `failed` is final,
+  and a third intervention is refused; anything else is ignored and logged. `retry` on a
+  stuck job = `attempts = 0, locked_at = NULL`, status unchanged; `reject` = `rejected`,
+  slot cleared; both `master_rounds + 1` → `master_log` → if there are
   actions, suggestions, findings, an empty slot day (§6) or a Scheduler change today:
   `sc.mail` `ShortCircuit Master brief — <date>` (the brief, plus every Master decision of
   the day).
@@ -1129,21 +1193,27 @@ or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
 starts (*n8n Trigger*, event "Instance started", so after every `apply-env.sh`), every hour
 (so a credential re-connected later is picked up without a restart; a run with nothing
 changed is one Postgres read and costs no API calls) and by hand.
-1. Postgres: read `config_seen` (keys `owner_email`, `channel_handle`, `channel_id`).
-   First run (empty) → share `ShortCircuit/` with `OWNER_EMAIL` as Viewer, `sc.channel`, store
-   the three values, stop. A key whose last attempt did not finish (step 3 `ok: false`) is
+1. Postgres: read `config_seen` (keys `owner_email`, `drive_owner`, `channel_handle`,
+   `channel_id`). First run (empty) → store `owner_email`, run step 2b and `sc.channel`,
+   store the rest, stop. A key whose last attempt did not finish (step 2b or 3 failed) is
    still "changed" on the next run.
-2. `OWNER_EMAIL` changed → Google Drive (`Drive Bot`): share `ShortCircuit/` with the new
-   address as Viewer, then remove the old address's permission (never shared publicly) →
-   `sc.mail` "ShortCircuit now mails you here" with the jobs in `script_review`,
-   `needs_human` and `video_review` and their Drive links → in those jobs set
-   `review_deadline = now() + 12 h` (48 h for `needs_human`), so the new address gets a full
-   review window.
+2. `OWNER_EMAIL` changed:
+   a. `sc.mail` "ShortCircuit now mails you here" with the jobs in `script_review`,
+      `needs_human` and `video_review` and their Drive links → in those jobs set
+      `review_deadline = now() + 12 h` (48 h for `needs_human`), so the new address gets a
+      full review window → store `owner_email`. This comes first and does not wait for
+      Drive, so a Drive failure never holds back the note or repeats it.
+   b. `drive_owner` ≠ `OWNER_EMAIL` → Google Drive (`Drive Bot`): share `ShortCircuit/` with
+      `OWNER_EMAIL` as Viewer (`sendNotificationEmail` on, which Drive requires for an
+      address without a Google account; the invite goes to `OWNER_EMAIL` only), then remove
+      `drive_owner`'s permission (never shared publicly) → store `drive_owner`. A Drive
+      error → `sc.alert` (`drive_share_failed`, "share `ShortCircuit/` with OWNER_EMAIL by
+      hand"); the hourly run tries again.
 3. `CHANNEL_HANDLE` changed → `sc.channel`. `ok: false` → stop (it has alerted; the next
    hourly run tries again, so re-connecting the credential is enough). `ok` and
    the channel id differs from the stored one → jobs in `awaiting_upload` back to
    `approved`, so `sc.publish` sends a new pack naming the new handle.
-4. Postgres: upsert `config_seen` (only for what step 2 or 3 finished), log the change in
+4. Postgres: upsert `config_seen` (only for what step 2a, 2b or 3 finished), log the change in
    `master_log` (task `config`) so the Master brief mentions it.
 
 **`sc.error`** — Error Trigger → Code (workflow, node, message) → if the same workflow failed
@@ -1155,7 +1225,7 @@ changed is one Postgres read and costs no API calls) and by hand.
 # docker-compose.yml (outline)
 services:
   postgres:  { image: postgres:16, volumes: [pg:/var/lib/postgresql/data, ./db:/docker-entrypoint-initdb.d] }
-  n8n:       { image: n8nio/n8n:<pinned>, ports: ["127.0.0.1:5678:5678"], volumes: [n8n_home:/home/node/.n8n, ./data:/data], env_file: .env, depends_on: [postgres] }
+  n8n:       { image: n8nio/n8n:<pinned>, ports: ["127.0.0.1:5678:5678"], volumes: [n8n_home:/home/node/.n8n, ./data:/data], env_file: ./data/.env.live, depends_on: [postgres] }  # checked copy of .env, written only by apply-env.sh
   kokoro:    { image: ghcr.io/remsky/kokoro-fastapi-cpu:<pinned> }
   renderer:  { build: ./renderer, volumes: [./data:/data, ./assets:/assets:ro], env_file: renderer.env }
 # every service: restart: unless-stopped, plus a healthcheck
@@ -1174,8 +1244,10 @@ change to `.env` recreates n8n alone and never kills a render in progress.
   `sudo pmset -c sleep 0 disksleep 0` (never sleep on power) and `sudo pmset autorestart 1`
   (boot after a power cut).
 - **`.env` watcher (`launchd` → `scripts/apply-env.sh`):** `WatchPaths` on `.env` plus
-  `StartInterval` 60 s; acts only when the file's hash changed; validates, waits for
-  unlocked jobs, recreates n8n, checks it came back with the new values (§1).
+  `StartInterval` 60 s; acts only when the file's hash changed; validates a snapshot (values,
+  DMARC, no change to `N8N_ENCRYPTION_KEY` or `POSTGRES_*`), waits for unlocked jobs, makes
+  the snapshot `data/.env.live`, recreates n8n, checks it came back with the new values, and
+  rolls back if not (§1).
 - **Nothing public:** n8n binds to localhost; it only polls Gmail and calls APIs out.
   No webhooks, no tunnel, no open ports.
 - **Backups (nightly, macOS `launchd` → `scripts/backup.sh`):** `pg_dump` of both databases,
@@ -1233,14 +1305,14 @@ Each milestone ends with a check that can be seen working.
 
 | # | Build | Done when |
 |---|---|---|
-| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed; saving `.env` with a bad `OWNER_EMAIL` gives a notification and leaves n8n untouched; a good change saved from the editor actually used (and one written with `mv` over the file) is applied within 2 min; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id |
+| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed; saving `.env` with a bad `OWNER_EMAIL`, an owner domain without DMARC, `PUBLISH_MODE=Auto`, an `LLM_CHAIN_*` naming an unknown provider, or a changed `N8N_ENCRYPTION_KEY` gives one notification (not one a minute) and leaves n8n untouched; a second save made while a run waits for a locked job is not applied by that run, but by the next one after its own check; a good change saved from the editor actually used (and one written with `mv` over the file) is applied within 2 min; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id |
 | M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert`, `sc.mail` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled; `exclude_provider` skips that provider; `sc.mail` delivers to `OWNER_EMAIL` and throws (sends nothing) with `OWNER_EMAIL` empty or holding two addresses |
 | M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human`; a Scout output with an invented url or a `primary_url` on an unrelated host is cut by the url check |
-| M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
-| M4 | renderer | Renderer tests pass (url-check test included); `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
-| M5 | `sc.render` | Video on Drive, local copy gone, slot assigned, mail with link; a video note re-renders into the same Drive file; `APPROVE` + notes on a video re-renders and goes `approved`; Ollama is unloaded during the render (`ollama ps` empty) |
-| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job; **change test:** save a new `OWNER_EMAIL` in `.env` (no other step) while a render runs → n8n is recreated only after the render's job unlocks; the new address gets the note and Drive access (first `sc.config` run on an empty `config_seen` shares the folder by itself), the old one loses it, the next review mail goes to the new address and a reply from the old one is ignored; new `CHANNEL_HANDLE` alone → `channel_mismatch` alert, nothing uploaded; then re-connect the credential (no restart) → within an hour `sc.config` re-sends waiting packs and the next upload lands on the new channel, a video already scheduled on the old channel stays there and its job ends `done`, not `cancelled` |
-| M7 | `sc.ask_master`, `sc.master` | `sc.ask_master.test` passes; a weak fixture script gets `redo` and is rewritten once; a forced render error goes `triage` → `retry` → success; a step that keeps failing ends `failed` + `ALERT` with the diagnosis; a third intervention is refused; with the `Anthropic` credential set to a bad key the pipeline still runs (reviews logged as skipped, `triage` jobs keep `triage_from`, keep `attempts = 0` and go `failed` 6 h after `triage_at`); the brief arrives only on a day with actions |
+| M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored, and so is one carrying its own forged `dmarc=pass` header below Gmail's; a reply whose `sc.inbox` run fails (Postgres stopped) is applied the next minute after Postgres is back; an empty reply, a signature-only reply and a reply to `SC-9999` are ignored; `approve.` works as `APPROVE`; a 4th change request mails `NEEDS YOU: 3 rounds used`; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
+| M4 | renderer | Renderer tests pass (url-check and DNS-rebinding tests included); `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
+| M5 | `sc.render` | Video on Drive, local copy gone, slot assigned, mail with link; a video note re-renders into the same Drive file; `APPROVE` + notes on a video re-renders and goes `approved`; Ollama is unloaded during the render (`ollama ps` empty) and stays unloaded when `sc.create` runs a call with Ollama in its chain during the render; a narration note on a video that the Checker flags goes `needs_human` and keeps its slot |
+| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with the YouTube API returning errors (bad token) `sc.livecheck` changes no job; a job set to `failed` frees its slot and raises no `slot_missed`; in `auto`, a job approved after its `slot_at` is uploaded `public` at once; an `OWNER_EMAIL` without a Google account gets the note even if the Drive share fails (`drive_share_failed` alert); with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job; **change test:** save a new `OWNER_EMAIL` in `.env` (no other step) while a render runs → n8n is recreated only after the render's job unlocks; the new address gets the note and Drive access (first `sc.config` run on an empty `config_seen` shares the folder by itself), the old one loses it, the next review mail goes to the new address and a reply from the old one is ignored; new `CHANNEL_HANDLE` alone → `channel_mismatch` alert, nothing uploaded; then re-connect the credential (no restart) → within an hour `sc.config` re-sends waiting packs and the next upload lands on the new channel, a video already scheduled on the old channel stays there and its job ends `done`, not `cancelled` |
+| M7 | `sc.ask_master`, `sc.master` | `sc.ask_master.test` passes; a weak fixture script gets `redo` and is rewritten once; a forced render error goes `triage` → `retry` → success; a step that keeps failing ends `failed` + `ALERT` with the diagnosis; a third intervention is refused (in triage and in the daily review), and the daily review never acts on a `failed` job; with the `Anthropic` credential set to a bad key the pipeline still runs (reviews logged as skipped, `triage` jobs keep `triage_from`, keep `attempts = 0` and go `failed` 6 h after `triage_at`); the brief arrives only on a day with actions |
 | M8 | `sc.schedule`, metrics | `metrics` rows appear at 24 h / 48 h / 7 d for live videos; with < 12 videos the slots rotate; with fixture metrics `sc.schedule` writes a valid week, changes ≤ 2 days and never moves an assigned slot |
 | M9 | `sc.diagnose`, `tests/agents/` | Manual run mails a report with every agent × provider tested; a fixture with a planted bad fact fails a weakened Checker prompt; a fake candidate id is never called; setting one chain to a paid model puts the warning in the first line; with a bad `Anthropic` key the report still arrives with code results only |
 | M10 | Hardening | Pull the network, kill containers, reboot the Mac mid-render: every job recovers, no job is rendered twice. A render that runs past 80 min is killed and its job claimed again after 90 min. Backup restore works. **7-day dry run** on a separate test channel (`CHANNEL_HANDLE` = the test channel's handle) with 1-hour timeouts |
@@ -1260,8 +1332,8 @@ Each milestone ends with a check that can be seen working.
 | Topics stale by publish day | 7-day shelf-life rule in Scout |
 | Monetization refused as "inauthentic content" | One sourced idea per video, varied visuals, human review possible; channel still works without monetization |
 | Copyright | Pexels, own cards, screenshots of official pages only, Audio Library music |
-| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` for its domain in `Authentication-Results` (a forged From fails this); commands parsed in code; mail text reaches agents only as tagged data |
-| `.env` edited but the change not loaded, or a typo in it | `launchd` runs `apply-env.sh` on every save and every 60 s (hash compare, so an editor's rename-save is never missed): validates first (a bad value never reaches n8n), applies, then checks n8n shows the new values; any failure is a macOS notification and is retried on the next run |
+| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` for its domain in the top `Authentication-Results` header from `mx.google.com` (a forged From or a forged lower header fails this); commands parsed in code; mail text reaches agents only as tagged data |
+| `.env` edited but the change not loaded, or a typo in it | `launchd` runs `apply-env.sh` on every save and every 60 s (hash compare, so an editor's rename-save is never missed): validates a snapshot first (values, allowed values, chains, DMARC; a bad value never reaches n8n, which reads only the checked `data/.env.live`); refuses changes to `N8N_ENCRYPTION_KEY` and `POSTGRES_*`; a save during the wait gets its own run; a failed reload rolls back to the old values; one macOS notification per bad save |
 | Mac failure | 3-day buffer; nightly backups; whole stack restores from git + `backups/` |
 | Google OAuth token revoked | Steps fail → jobs reach `triage`/`failed` and `sc.error` sends `workflow_failing` → `ALERT` within the hour. If the Gmail token itself is revoked no mail can go out: `sc.alert` also writes the alert to `alerts` and the n8n execution log, the job states stop advancing, and the Master brief (once mail works again) lists what happened |
 | Anthropic API down, spend limit hit or key revoked | The Master is optional: without it reviews are skipped and failures go to `failed` + `ALERT` as before; `master_down` alert after 24 h. Spend limit in the Console caps the bill |
