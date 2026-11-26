@@ -43,17 +43,28 @@ gets a monthly spend limit (e.g. $40) so a loop can never run up a bill.
 **Changing them.** Both are read from `$env` at the moment they are used (every send, every
 YouTube check, every inbox poll); nothing copies them into workflows or job rows. To change
 one: **edit and save `.env`; nothing else.** n8n only loads `.env` when its container is
-created (a plain `restart` keeps the old values), so a `launchd` agent watches the file
-(`WatchPaths`) and runs `scripts/apply-env.sh`, which:
+created (a plain `restart` keeps the old values), so a `launchd` agent runs
+`scripts/apply-env.sh` when the file changes (`WatchPaths`) **and every 60 s**
+(`StartInterval`). The timer is the safety net: many editors save by writing a new file
+and renaming it over the old one, which a path watch can miss. Each run hashes `.env` and
+compares it with the hash it last applied (`data/.env.applied.sha256`); same hash → exit at
+once, so the timer costs nothing. A changed hash →
 1. Validates the file first: `OWNER_EMAIL` is exactly one address, `CHANNEL_HANDLE`
    matches `^@[A-Za-z0-9._-]{3,30}$` (a missing `@` is added), every required key is set.
    Invalid → a macOS notification says which line is wrong, and n8n keeps running with the
-   old values (a typo never reaches the pipeline).
+   old values (a typo never reaches the pipeline). The rejected hash is saved
+   (`data/.env.rejected.sha256`) so the 60 s timer does not repeat the notification; the
+   next save changes the hash and is checked again.
 2. Waits until no job is locked (polls Postgres every minute, at most 90 min), so a render
    is not killed halfway.
 3. Runs `docker compose up -d n8n`, which recreates n8n with the new values.
-4. Checks that n8n is healthy again and that `$env` inside it shows the new values; if not,
-   a macOS notification.
+4. Checks that n8n is healthy again and that `$env` inside it shows the new values; then
+   writes the new hash. If not, a macOS notification, and the hash is not written, so the
+   next run tries again.
+A lock directory (`mkdir data/.apply-env.lock`, atomic; macOS has no `flock`) keeps two
+runs from overlapping, and the script removes it on exit (`trap`); a lock older than 2 h
+is from a crashed run and is removed. A save made while a run is waiting changes the
+hash, so the next run applies it.
 
 From then on:
 - **New `OWNER_EMAIL`:** every mail goes to the new address, including mails still waiting
@@ -1095,8 +1106,11 @@ or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
 
 **`sc.channel`** — the channel guard (§1). Output `{ok, channel_id}` or `{ok: false, reason}`.
 0. Code: normalise `CHANNEL_HANDLE`: trim spaces, add a leading `@` if missing, check
-   `^@[A-Za-z0-9._-]{3,30}$` (else `ok: false`, `bad_handle` + alert). Handles are not
-   case-sensitive, and only the resolved channel ids are compared, so case never matters.
+   `^@[A-Za-z0-9._-]{3,30}$` (else `ok: false`, `bad_handle` + alert). The API accepts the
+   handle with or without `@` (channels.list docs). The docs do not say whether `forHandle`
+   ignores letter case, so the handle is sent exactly as written in `.env` (copy it from
+   the channel page); M0 checks other cases, and the alert for `handle_not_found` says to
+   check the case. Only the resolved channel ids are compared after that.
 1. HTTP Request (`YouTube Channel`): `channels.list?part=id&forHandle=<handle>` (url-encoded)
    → the handle's channel id (none → `ok: false`, `handle_not_found` + alert naming the
    handle as sent).
@@ -1154,9 +1168,9 @@ change to `.env` recreates n8n alone and never kills a render in progress.
 - **Always on:** Docker Desktop and Ollama start at login; the Mac logs in automatically;
   `sudo pmset -c sleep 0 disksleep 0` (never sleep on power) and `sudo pmset autorestart 1`
   (boot after a power cut).
-- **`.env` watcher (`launchd` → `scripts/apply-env.sh`):** `WatchPaths` on `.env`; validates,
-  waits for unlocked jobs, recreates n8n, checks it came back with the new values (§1).
-  A save while the script is already waiting is picked up by that same run.
+- **`.env` watcher (`launchd` → `scripts/apply-env.sh`):** `WatchPaths` on `.env` plus
+  `StartInterval` 60 s; acts only when the file's hash changed; validates, waits for
+  unlocked jobs, recreates n8n, checks it came back with the new values (§1).
 - **Nothing public:** n8n binds to localhost; it only polls Gmail and calls APIs out.
   No webhooks, no tunnel, no open ports.
 - **Backups (nightly, macOS `launchd` → `scripts/backup.sh`):** `pg_dump` of both databases,
@@ -1214,7 +1228,7 @@ Each milestone ends with a check that can be seen working.
 
 | # | Build | Done when |
 |---|---|---|
-| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed, and saving `.env` with a bad `OWNER_EMAIL` gives a notification and leaves n8n untouched; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id (tried with and without the `@` and in other letter case) |
+| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed; saving `.env` with a bad `OWNER_EMAIL` gives a notification and leaves n8n untouched; a good change saved from the editor actually used (and one written with `mv` over the file) is applied within 2 min; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id (tried with and without the `@`; also in other letter case, and the result noted in `.env.example`) |
 | M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert`, `sc.mail` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled; `exclude_provider` skips that provider; `sc.mail` delivers to `OWNER_EMAIL` and throws (sends nothing) with `OWNER_EMAIL` empty or holding two addresses |
 | M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human`; a Scout output with an invented url or a `primary_url` on an unrelated host is cut by the url check |
 | M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
@@ -1242,7 +1256,7 @@ Each milestone ends with a check that can be seen working.
 | Monetization refused as "inauthentic content" | One sourced idea per video, varied visuals, human review possible; channel still works without monetization |
 | Copyright | Pexels, own cards, screenshots of official pages only, Audio Library music |
 | Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` for its domain in `Authentication-Results` (a forged From fails this); commands parsed in code; mail text reaches agents only as tagged data |
-| `.env` edited but the change not loaded, or a typo in it | `launchd` runs `apply-env.sh` on every save: validates first (a bad value never reaches n8n), applies, then checks n8n shows the new values; any failure is a macOS notification |
+| `.env` edited but the change not loaded, or a typo in it | `launchd` runs `apply-env.sh` on every save and every 60 s (hash compare, so an editor's rename-save is never missed): validates first (a bad value never reaches n8n), applies, then checks n8n shows the new values; any failure is a macOS notification and is retried on the next run |
 | Mac failure | 3-day buffer; nightly backups; whole stack restores from git + `backups/` |
 | Google OAuth token revoked | Steps fail → jobs reach `triage`/`failed` and `sc.error` sends `workflow_failing` → `ALERT` within the hour. If the Gmail token itself is revoked no mail can go out: `sc.alert` also writes the alert to `alerts` and the n8n execution log, the job states stop advancing, and the Master brief (once mail works again) lists what happened |
 | Anthropic API down, spend limit hit or key revoked | The Master is optional: without it reviews are skipped and failures go to `failed` + `ALERT` as before; `master_down` alert after 24 h. Spend limit in the Console caps the bill |
