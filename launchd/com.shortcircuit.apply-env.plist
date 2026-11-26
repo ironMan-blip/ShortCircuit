@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs scripts/apply-env.sh on every save of .env and every 60 s (docs/PLAN.md §1).
+  Install, from the repo root (launchd needs absolute paths, so __ROOT__ is filled in):
+    sed "s|__ROOT__|$PWD|g" launchd/com.shortcircuit.apply-env.plist > ~/Library/LaunchAgents/com.shortcircuit.apply-env.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.shortcircuit.apply-env.plist
+  Remove: launchctl bootout gui/$(id -u)/com.shortcircuit.apply-env
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.shortcircuit.apply-env</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__ROOT__/scripts/apply-env.sh</string>
+  </array>
+  <key>WatchPaths</key>
+  <array>
+    <string>__ROOT__/.env</string>
+  </array>
+  <!-- The safety net: an editor that saves by rename can slip past WatchPaths. -->
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__ROOT__/state/apply-env.log</string>
+  <key>StandardErrorPath</key>
+  <string>__ROOT__/state/apply-env.log</string>
+</dict>
+</plist>

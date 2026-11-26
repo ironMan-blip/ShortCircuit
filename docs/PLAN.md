@@ -103,6 +103,9 @@ A changed hash →
 1. Copies `.env` to `state/.env.pending` and from here on works only on that copy, so a
    save made during the run cannot slip in unchecked; that save gets its own run later.
 2. Validates the copy, and never rewrites a value:
+   - Only the keys of `.env.example`, each once; no value holds a space, quote, `$`, `\` or
+     backtick (Compose would read those differently from the check). So no other variable
+     (e.g. `NODE_OPTIONS`) can reach n8n through `.env`.
    - `OWNER_EMAIL` is exactly one address (no `,`, `;`, spaces or line breaks).
    - `CHANNEL_HANDLE` matches `^@[A-Za-z0-9._-]{3,30}$` (with the `@`, no spaces).
    - Every required key is set. Keys with fixed values hold one of them (`PUBLISH_MODE`
@@ -122,8 +125,11 @@ A changed hash →
 3. Waits until no job is locked (polls Postgres every minute, at most 90 min), so a render
    is not killed halfway. Still busy after 90 min → exits without saving any hash; the
    next run starts over.
-4. Moves the copy over `state/.env.live` (keeping the old one as `state/.env.live.prev`) and
-   runs `docker compose up -d n8n`, which recreates n8n with the new values.
+4. Appends the n8n settings that follow from `.env` values (`GENERIC_TIMEZONE` = `TZ`,
+   `N8N_EDITOR_BASE_URL` = `WEBHOOK_URL`, `DB_POSTGRESDB_PASSWORD` = `POSTGRES_PASSWORD`;
+   `.env` may not set them), moves the copy over `state/.env.live` (keeping the old one as
+   `state/.env.live.prev`) and runs `docker compose up -d --no-deps n8n`, which recreates
+   n8n alone with the new values (Postgres reads the same file, and must not restart).
 5. Checks that n8n is healthy again and that `$env` inside it shows the new values; then
    saves the copy's hash as applied. If not: puts `state/.env.live.prev` back, runs
    `up -d n8n` again so the old values are live, sends one macOS notification, and saves
@@ -1556,6 +1562,7 @@ renderer/           Dockerfile, app.py, voice.py, visuals.py, captions.py, mix.p
 prompts/            style.md + one file per agent step + <worker>.schema.json
 tests/master/       fixture contexts for sc.ask_master.test, and for the Master agent (fake crew snapshots)
 tests/agents/<agent>.json  export of the Data Table eval_<agent> (input + expect), for git history
+tests/apply-env.test.sh    apply-env.sh against stub docker/osascript (bash tests/apply-env.test.sh)
 workflows/          sc.*.json, sc.tool.*.json, sc.eval.*.json (exported, committed)
 docs/notes/         one short note per milestone: what was learned, what surprised, what to try next
 assets/brand/       font, colours, card template, outro
