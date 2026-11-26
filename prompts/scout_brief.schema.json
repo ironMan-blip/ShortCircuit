@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "topic": { "type": "string" },
+    "angle": { "type": "string" },
+    "shelf_life_days": { "type": "integer" },
+    "facts": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim": { "type": "string" },
+          "source_url": { "type": "string" },
+          "quote": { "type": "string" }
+        },
+        "required": ["claim", "source_url", "quote"]
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "title": { "type": "string" },
+          "publisher": { "type": "string" }
+        },
+        "required": ["url", "title", "publisher"]
+      }
+    },
+    "primary_url": { "type": ["string", "null"] }
+  },
+  "required": ["topic", "angle", "shelf_life_days", "facts", "sources", "primary_url"]
+}

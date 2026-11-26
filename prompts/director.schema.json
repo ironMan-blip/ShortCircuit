@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "voice": { "type": "string" },
+    "speed": { "type": "number" },
+    "music_mood": { "type": "string" },
+    "scenes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "narration": { "type": "string" },
+          "visual": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["stock", "card", "screenshot"] },
+              "query": { "type": "string" },
+              "text": { "type": "string" },
+              "url": { "type": "string" }
+            },
+            "required": ["type", "query", "text", "url"]
+          },
+          "on_screen_text": { "type": "string" }
+        },
+        "required": ["id", "narration", "visual", "on_screen_text"]
+      }
+    }
+  },
+  "required": ["voice", "speed", "music_mood", "scenes"]
+}
