@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "title": { "type": "string", "maxLength": 70 },
+    "hook": { "type": "string" },
+    "scenes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "narration": { "type": "string" },
+          "fact_ids": { "type": "array", "items": { "type": "integer" } },
+          "visual_hint": { "type": "string" }
+        },
+        "required": ["id", "narration", "fact_ids", "visual_hint"]
+      }
+    },
+    "description": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["title", "hook", "scenes", "description", "tags"]
+}

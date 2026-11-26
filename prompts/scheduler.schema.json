@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "week": {
+      "type": "object",
+      "properties": {
+        "mon": { "type": "string" }, "tue": { "type": "string" }, "wed": { "type": "string" },
+        "thu": { "type": "string" }, "fri": { "type": "string" }, "sat": { "type": "string" },
+        "sun": { "type": "string" }
+      },
+      "required": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    },
+    "explore_day": { "type": "string", "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] },
+    "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+    "reason": { "type": "string" }
+  },
+  "required": ["week", "explore_day", "confidence", "reason"]
+}

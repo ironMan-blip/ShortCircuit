@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "topic": { "type": "string", "description": "short name of the topic" },
+    "angle": { "type": "string", "description": "the one idea the video explains" },
+    "source_urls": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 4 },
+    "primary_url": { "type": ["string", "null"] },
+    "shelf_life_days": { "type": "integer" },
+    "reason": { "type": "string" }
+  },
+  "required": ["topic", "angle", "source_urls", "primary_url", "shelf_life_days", "reason"]
+}

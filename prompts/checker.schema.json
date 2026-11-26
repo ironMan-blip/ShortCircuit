@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "pass": { "type": "boolean" },
+    "unsupported_claims": { "type": "array", "items": { "type": "string" } },
+    "policy_issues": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["pass", "unsupported_claims", "policy_issues"]
+}
