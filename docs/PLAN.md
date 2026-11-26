@@ -42,18 +42,31 @@ gets a monthly spend limit (e.g. $40) so a loop can never run up a bill.
 
 **Changing them.** Both are read from `$env` at the moment they are used (every send, every
 YouTube check, every inbox poll); nothing copies them into workflows or job rows. To change
-one: edit `.env`, then `docker compose up -d n8n` (this recreates the container so the new
-`.env` is loaded; a plain `restart` keeps the old values). From then on:
+one: **edit and save `.env`; nothing else.** n8n only loads `.env` when its container is
+created (a plain `restart` keeps the old values), so a `launchd` agent watches the file
+(`WatchPaths`) and runs `scripts/apply-env.sh`, which:
+1. Validates the file first: `OWNER_EMAIL` is exactly one address, `CHANNEL_HANDLE`
+   matches `^@[A-Za-z0-9._-]{3,30}$` (a missing `@` is added), every required key is set.
+   Invalid → a macOS notification says which line is wrong, and n8n keeps running with the
+   old values (a typo never reaches the pipeline).
+2. Waits until no job is locked (polls Postgres every minute, at most 90 min), so a render
+   is not killed halfway.
+3. Runs `docker compose up -d n8n`, which recreates n8n with the new values.
+4. Checks that n8n is healthy again and that `$env` inside it shows the new values; if not,
+   a macOS notification.
+
+From then on:
 - **New `OWNER_EMAIL`:** every mail goes to the new address, including mails still waiting
   in an `outbox`. Only replies from the new address are acted on; replies from the old one
-  are ignored like any stranger's. On start, `sc.config` (§10.6) shares the Drive folder with
+  are ignored like any stranger's. `sc.config` (§10.6, runs on start and hourly) shares the Drive folder with
   the new address, removes the old address's access and mails the new address a
   "ShortCircuit now mails you here" note listing the jobs waiting for review.
 - **New `CHANNEL_HANDLE`, same channel** (the handle was renamed): `sc.channel` resolves the
   new handle to the same channel id, so nothing else changes.
 - **New `CHANNEL_HANDLE`, different channel:** re-connect the `YouTube Channel` credential
   to the new channel too (§10.2). Until both match, `sc.channel` refuses every write and
-  alerts. New uploads go to the new channel. Videos already on the old channel are left
+  alerts; within an hour of the credential being re-connected, `sc.config` picks it up by
+  itself. New uploads go to the new channel. Videos already on the old channel are left
   there to publish as scheduled: each job remembers the channel it was uploaded to
   (`jobs.channel_id`), and `sc.livecheck` never marks a job on another channel as
   `cancelled`, and `sc.publish` never deletes from it. Jobs still in `awaiting_upload` get a
@@ -63,8 +76,8 @@ Why a separate bot account: if the pipeline sent mail from the owner's own addre
 outgoing mails would look exactly like owner replies and the inbox router would act on them.
 With a bot account the rule is simple: **the bot acts only on mail from `OWNER_EMAIL`**.
 
-The bot shares its Drive folder `ShortCircuit/` with the owner as Viewer (once, by hand).
-Nothing is ever shared publicly.
+The bot shares its Drive folder `ShortCircuit/` with `OWNER_EMAIL` as Viewer: `sc.config`
+does this on its first run and after every owner change. Nothing is ever shared publicly.
 
 ## 2. What the owner sees
 
@@ -76,7 +89,8 @@ Nothing is ever shared publicly.
 | `[SC-0042] NEEDS YOU: <reason>` | The fact-checker could not clear the script | Yes. No reply in 48 h → job dropped and replaced |
 | `ShortCircuit upload pack — 3 videos` | `manual` mode only (until the YouTube audit passes), about every 3 days | Yes: schedule them in YouTube Studio, ~5 min |
 | `ShortCircuit ALERT: <problem>` | Something is broken | Read it |
-| `ShortCircuit Master brief — <date>` | 21:00, **only** on days the Master fixed something, changed the publish schedule or has a suggestion | No |
+| `ShortCircuit now mails you here` | Once, after `OWNER_EMAIL` changes (sent to the new address) | No |
+| `ShortCircuit Master brief — <date>` | 21:00, **only** on days the Master fixed something, changed the publish schedule, a slot day stayed empty, a setting changed, or it has a suggestion | No |
 | `ShortCircuit weekly diagnosis — <date>` | Sunday ~05:30, **every week** (§4.9) | No. Paste a suggested `.env` line only if you agree |
 
 Nothing else. The Master brief is the only daily digest and is skipped on quiet days. No
@@ -431,7 +445,8 @@ mail, healthy or not. It has a *Manual Trigger* too, for testing.
    next week's comparison.
 
 - **It only reports.** It never changes a chain, model, prompt or setting. The owner pastes
-  a suggested line into `.env` if they agree (and restarts n8n).
+  a suggested line into `.env` if they agree; saving the file applies it (§1,
+  `scripts/apply-env.sh`).
 - **Master down:** steps 3–5 are skipped; the report still goes out with the code results
   and says "Master unavailable — no research or grading this week".
 - **Outputs:**
@@ -551,7 +566,7 @@ Nodes:
    input/output tokens and `server_tool_use.web_search_requests` from the response).
 
 One call at a time: the sub-workflow is only called from workers that already run one job
-per tick, and `sc.master` has its own lock row, so no extra queue is needed. (`sc.diagnose`
+per tick, and `sc.master` locks the triage job it works on, so no extra queue is needed. (`sc.diagnose`
 runs weekly; an overlap with a triage call shares no state and is harmless.)
 
 `DIAG_WEB_DOMAINS` is a fixed list in the request Code node: `ai.google.dev`, `groq.com`,
@@ -845,8 +860,8 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
 | `sc.alert` | Called | — | — | — |
 | `sc.mail` | Called | — | — | — (sends to `OWNER_EMAIL` only; clears `outbox`) |
 | `sc.channel` | Called | — | — | — (checks the credential's channel is `CHANNEL_HANDLE`) |
-| `sc.config` | n8n Trigger (instance started) + Manual | — | — | `awaiting_upload` packs re-sent (on a channel change) |
-| `sc.error` | Error Trigger | — | — | clears lock, saves error |
+| `sc.config` | n8n Trigger (instance started) + hourly + Manual | — | — | `awaiting_upload` → `approved` (new pack, on a channel change) |
+| `sc.error` | Error Trigger | — | — | — (alerts only; never touches jobs) |
 | `sc.llm` | Called | — | (all workers) | — |
 | `sc.ask_master` | Called | — | Master | — (writes `master_log`) |
 
@@ -893,8 +908,10 @@ model right before calling the renderer (`POST /api/generate {"model": <OLLAMA_M
    `from:OWNER_EMAIL is:unread subject:"[SC-"`, *Simplify* off (full body needed).
 2. Code: check the sender address matches `OWNER_EMAIL` exactly (filter alone is not
    trusted) **and** that the `Authentication-Results` header Gmail added shows
-   `dmarc=pass` and `dkim=pass` with `header.d` equal to the domain of `OWNER_EMAIL`
-   (a spoofed From fails this); otherwise mark read, label `sc/ignored`, stop.
+   `dmarc=pass` with `header.from` equal to the domain of `OWNER_EMAIL` (DMARC pass already
+   means an aligned DKIM or SPF pass, so a spoofed From fails it while real mail from
+   gmail.com or a custom domain with DMARC passes); otherwise mark read, label `sc/ignored`,
+   stop. An owner domain with no DMARC record can never pass: M0 checks it.
    Extract job id from subject; take the text part, cut everything from the first quoted
    line (`On … wrote:`, `>`, `-----Original`); first word → command; rest → notes.
 3. Postgres: insert into `replies` (`ON CONFLICT DO NOTHING`); no row inserted → already
@@ -1077,8 +1094,12 @@ or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
    gmail_message_id = $m WHERE id = $id`.
 
 **`sc.channel`** — the channel guard (§1). Output `{ok, channel_id}` or `{ok: false, reason}`.
-1. HTTP Request (`YouTube Channel`): `channels.list?part=id&forHandle=<CHANNEL_HANDLE>` →
-   the handle's channel id (none → `ok: false`, `handle_not_found`).
+0. Code: normalise `CHANNEL_HANDLE`: trim spaces, add a leading `@` if missing, check
+   `^@[A-Za-z0-9._-]{3,30}$` (else `ok: false`, `bad_handle` + alert). Handles are not
+   case-sensitive, and only the resolved channel ids are compared, so case never matters.
+1. HTTP Request (`YouTube Channel`): `channels.list?part=id&forHandle=<handle>` (url-encoded)
+   → the handle's channel id (none → `ok: false`, `handle_not_found` + alert naming the
+   handle as sent).
 2. HTTP Request (`YouTube Channel`): `channels.list?part=id&mine=true` → the credential's
    channel id.
 3. Code: equal → `ok: true`. Different → `sc.alert` (`channel_mismatch`, "the YouTube
@@ -1086,17 +1107,21 @@ or `{subject, html}` (alerts, brief, diagnosis). No recipient input.
    (2 quota units a call.)
 
 **`sc.config`** — applies a changed `OWNER_EMAIL` or `CHANNEL_HANDLE` (§1). Runs when n8n
-starts (*n8n Trigger*, event "Instance started", so after every `docker compose up -d`) and
-by hand.
-1. Postgres: read `config_seen`. First run (empty) → just store the current values, stop.
+starts (*n8n Trigger*, event "Instance started", so after every `apply-env.sh`), every hour
+(so a credential re-connected later is picked up without a restart; a run with nothing
+changed is one Postgres read and costs no API calls) and by hand.
+1. Postgres: read `config_seen` (keys `owner_email`, `channel_handle`, `channel_id`).
+   First run (empty) → share `ShortCircuit/` with `OWNER_EMAIL` as Viewer, `sc.channel`, store
+   the three values, stop. A key whose last attempt did not finish (step 3 `ok: false`) is
+   still "changed" on the next run.
 2. `OWNER_EMAIL` changed → Google Drive (`Drive Bot`): share `ShortCircuit/` with the new
    address as Viewer, then remove the old address's permission (never shared publicly) →
    `sc.mail` "ShortCircuit now mails you here" with the jobs in `script_review`,
    `needs_human` and `video_review` and their Drive links → in those jobs set
    `review_deadline = now() + 12 h` (48 h for `needs_human`), so the new address gets a full
    review window.
-3. `CHANNEL_HANDLE` changed → `sc.channel`. `ok: false` → stop (it has alerted; `sc.config`
-   runs again on the next start, or by hand once the credential is re-connected). `ok` and
+3. `CHANNEL_HANDLE` changed → `sc.channel`. `ok: false` → stop (it has alerted; the next
+   hourly run tries again, so re-connecting the credential is enough). `ok` and
    the channel id differs from the stored one → jobs in `awaiting_upload` back to
    `approved`, so `sc.publish` sends a new pack naming the new handle.
 4. Postgres: upsert `config_seen` (only for what step 2 or 3 finished), log the change in
@@ -1113,9 +1138,12 @@ services:
   postgres:  { image: postgres:16, volumes: [pg:/var/lib/postgresql/data, ./db:/docker-entrypoint-initdb.d] }
   n8n:       { image: n8nio/n8n:<pinned>, ports: ["127.0.0.1:5678:5678"], volumes: [n8n_home:/home/node/.n8n, ./data:/data], env_file: .env, depends_on: [postgres] }
   kokoro:    { image: ghcr.io/remsky/kokoro-fastapi-cpu:<pinned> }
-  renderer:  { build: ./renderer, volumes: [./data:/data, ./assets:/assets:ro], env_file: .env }
+  renderer:  { build: ./renderer, volumes: [./data:/data, ./assets:/assets:ro], env_file: renderer.env }
 # every service: restart: unless-stopped, plus a healthcheck
 ```
+
+The renderer has its own `renderer.env` (only `PEXELS_API_KEY` and the Kokoro url), so a
+change to `.env` recreates n8n alone and never kills a render in progress.
 
 - **Ollama runs natively** (Docker on macOS cannot use the GPU), set to start at login.
   n8n reaches it at `host.docker.internal:11434`.
@@ -1126,11 +1154,14 @@ services:
 - **Always on:** Docker Desktop and Ollama start at login; the Mac logs in automatically;
   `sudo pmset -c sleep 0 disksleep 0` (never sleep on power) and `sudo pmset autorestart 1`
   (boot after a power cut).
+- **`.env` watcher (`launchd` → `scripts/apply-env.sh`):** `WatchPaths` on `.env`; validates,
+  waits for unlocked jobs, recreates n8n, checks it came back with the new values (§1).
+  A save while the script is already waiting is picked up by that same run.
 - **Nothing public:** n8n binds to localhost; it only polls Gmail and calls APIs out.
   No webhooks, no tunnel, no open ports.
 - **Backups (nightly, macOS `launchd` → `scripts/backup.sh`):** `pg_dump` of both databases,
   `n8n export:workflow --all --separate` and `n8n export:credentials --all` (encrypted)
-  into `backups/`, keep 14 days. `.env` (with `N8N_ENCRYPTION_KEY`) is copied to a password
+  into `backups/`, keep 14 days. `.env` (with `N8N_ENCRYPTION_KEY`) and `renderer.env` are copied to a password
   manager once. Restore steps are tested once at M10.
 - **Outage tolerance:** `auto` mode: YouTube publishes the 3 scheduled videos even if the Mac
   is off for 3 days. `manual` mode: videos the owner already scheduled still publish.
@@ -1158,9 +1189,10 @@ editing a prompt needs no workflow change.
 ```
 docker-compose.yml
 .env.example        OWNER_EMAIL, CHANNEL_HANDLE, BOT_EMAIL, TZ, PUBLISH_TIME, PUBLISH_MODE, BUFFER_TARGET,
-                    LLM_CHAIN_*, GEMINI_MODEL, GROQ_MODEL, OLLAMA_MODEL, PEXELS_API_KEY,
+                    LLM_CHAIN_*, GEMINI_MODEL, GROQ_MODEL, OLLAMA_MODEL,
                     N8N_ENCRYPTION_KEY, POSTGRES_*, SCHEDULE_CANDIDATES, MASTER_MODEL,
                     MASTER_EFFORT   (the Anthropic key is an n8n credential, not in .env)
+renderer.env.example  PEXELS_API_KEY, KOKORO_URL
 db/init.sql         creates both databases and the tables (§9)
 renderer/           Dockerfile, app.py, voice.py, visuals.py, captions.py, mix.py, tests/
 prompts/            style.md + one file per agent step + master_*.schema.json
@@ -1170,7 +1202,8 @@ workflows/          sc.*.json (exported, committed)
 assets/brand/       font, colours, card template, outro
 assets/music/<mood>/
 scripts/            backup.sh, restore.sh, export-workflows.sh, import-workflows.sh,
-                    check-workflows.sh (Gmail send only in sc.mail, YouTube writes only in sc.publish)
+                    check-workflows.sh (Gmail send only in sc.mail, YouTube writes only in sc.publish),
+                    apply-env.sh + launchd/com.shortcircuit.apply-env.plist (§1)
 data/  backups/     git-ignored
 docs/PLAN.md
 ```
@@ -1181,13 +1214,13 @@ Each milestone ends with a check that can be seen working.
 
 | # | Build | Done when |
 |---|---|---|
-| M0 | Accounts + infra | Bot Gmail made; Drive folder shared with owner; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id |
+| M0 | Accounts + infra | Bot Gmail made; `OWNER_EMAIL`'s domain publishes DMARC (gmail.com does; `dig TXT _dmarc.<domain>`); `apply-env.sh` + `launchd` agent installed, and saving `.env` with a bad `OWNER_EMAIL` gives a notification and leaves n8n untouched; Google Cloud project with 3 APIs, consent screen *In production*; **audit form sent**; compose up and healthy; Ollama, Gemini, Groq, Pexels each answer a test call; Claude Console account with API key and spend limit; an n8n HTTP Request with the `Anthropic` credential gets a reply from `MASTER_MODEL`; each worker model's daily free limit read and ≥ 60 a day (§4); `channels.list?forHandle=<CHANNEL_HANDLE>` and `mine=true` return the same channel id (tried with and without the `@` and in other letter case) |
 | M1 | `db/init.sql`, `sc.llm`, `sc.error`, `sc.alert`, `sc.mail` | `sc.llm` returns valid JSON from each provider alone, and falls back when the first is disabled; `exclude_provider` skips that provider; `sc.mail` delivers to `OWNER_EMAIL` and throws (sends nothing) with `OWNER_EMAIL` empty or holding two addresses |
 | M2 | `sc.produce`, `sc.create` | A script mail with sources and a clean check arrives; a forced bad fact lands in `needs_human`; a Scout output with an invented url or a `primary_url` on an unrelated host is cut by the url check |
 | M3 | `sc.inbox`, `sc.revise`, `sc.timeouts` | Every command × state pair works; a reply from another address is ignored; a mail with a forged From (DMARC fail) is ignored; the same mail twice changes nothing; a reply to an old mail gets the "not applied" answer; silence approves after 12 h (tested with a 5-min timeout); a job whose mail was never sent (`outbox` set by hand) is not approved and gets its mail re-sent; `scripts/check-workflows.sh` passes on the exported workflows and fails when a Gmail Send node is added to another workflow |
 | M4 | renderer | Renderer tests pass (url-check test included); `curl` with a sample plan gives a 1080×1920 mp4 with word captions, music, −14 LUFS |
 | M5 | `sc.render` | Video on Drive, local copy gone, slot assigned, mail with link; a video note re-renders into the same Drive file; `APPROVE` + notes on a video re-renders and goes `approved`; Ollama is unloaded during the render (`ollama ps` empty) |
-| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job; **change test:** new `OWNER_EMAIL` + `docker compose up -d n8n` → the new address gets the note and Drive access, the old one loses it, the next review mail goes to the new address and a reply from the old one is ignored; new `CHANNEL_HANDLE` + re-connected credential → the next upload lands on the new channel, a video already scheduled on the old channel stays there and its job ends `done`, not `cancelled` |
+| M6 | `sc.publish`, `sc.livecheck`, `sc.housekeeping`, `sc.channel` | `manual`: pack mail → owner schedules → job `scheduled` → `live` → Drive file gone; with `CHANNEL_HANDLE` set to another channel, `sc.channel` alerts `channel_mismatch`, nothing is uploaded and `sc.livecheck` changes no job; **change test:** save a new `OWNER_EMAIL` in `.env` (no other step) while a render runs → n8n is recreated only after the render's job unlocks; the new address gets the note and Drive access (first `sc.config` run on an empty `config_seen` shares the folder by itself), the old one loses it, the next review mail goes to the new address and a reply from the old one is ignored; new `CHANNEL_HANDLE` alone → `channel_mismatch` alert, nothing uploaded; then re-connect the credential (no restart) → within an hour `sc.config` re-sends waiting packs and the next upload lands on the new channel, a video already scheduled on the old channel stays there and its job ends `done`, not `cancelled` |
 | M7 | `sc.ask_master`, `sc.master` | `sc.ask_master.test` passes; a weak fixture script gets `redo` and is rewritten once; a forced render error goes `triage` → `retry` → success; a step that keeps failing ends `failed` + `ALERT` with the diagnosis; a third intervention is refused; with the `Anthropic` credential set to a bad key the pipeline still runs (reviews logged as skipped, `triage` jobs keep `triage_from`, keep `attempts = 0` and go `failed` 6 h after `triage_at`); the brief arrives only on a day with actions |
 | M8 | `sc.schedule`, metrics | `metrics` rows appear at 24 h / 48 h / 7 d for live videos; with < 12 videos the slots rotate; with fixture metrics `sc.schedule` writes a valid week, changes ≤ 2 days and never moves an assigned slot |
 | M9 | `sc.diagnose`, `tests/agents/` | Manual run mails a report with every agent × provider tested; a fixture with a planted bad fact fails a weakened Checker prompt; a fake candidate id is never called; setting one chain to a paid model puts the warning in the first line; with a bad `Anthropic` key the report still arrives with code results only |
@@ -1208,7 +1241,8 @@ Each milestone ends with a check that can be seen working.
 | Topics stale by publish day | 7-day shelf-life rule in Scout |
 | Monetization refused as "inauthentic content" | One sourced idea per video, varied visuals, human review possible; channel still works without monetization |
 | Copyright | Pexels, own cards, screenshots of official pages only, Audio Library music |
-| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` and `dkim=pass` for its domain in `Authentication-Results` (a forged From fails this); commands parsed in code; mail text reaches agents only as tagged data |
+| Mail as an attack path | Bot acts only on exact `OWNER_EMAIL` sender **with** `dmarc=pass` for its domain in `Authentication-Results` (a forged From fails this); commands parsed in code; mail text reaches agents only as tagged data |
+| `.env` edited but the change not loaded, or a typo in it | `launchd` runs `apply-env.sh` on every save: validates first (a bad value never reaches n8n), applies, then checks n8n shows the new values; any failure is a macOS notification |
 | Mac failure | 3-day buffer; nightly backups; whole stack restores from git + `backups/` |
 | Google OAuth token revoked | Steps fail → jobs reach `triage`/`failed` and `sc.error` sends `workflow_failing` → `ALERT` within the hour. If the Gmail token itself is revoked no mail can go out: `sc.alert` also writes the alert to `alerts` and the n8n execution log, the job states stop advancing, and the Master brief (once mail works again) lists what happened |
 | Anthropic API down, spend limit hit or key revoked | The Master is optional: without it reviews are skipped and failures go to `failed` + `ALERT` as before; `master_down` alert after 24 h. Spend limit in the Console caps the bill |
@@ -1231,7 +1265,7 @@ Each milestone ends with a check that can be seen working.
 | Anthropic spend limit | $40 a month (set in the Console) |
 | Job lock / run timeout | 90 min / 80 min (`EXECUTIONS_TIMEOUT`) |
 | Lost-mail re-send | after 10 min with `outbox` set |
-| Changing `OWNER_EMAIL` / `CHANNEL_HANDLE` | edit `.env`, `docker compose up -d n8n`; `sc.config` applies it (§1) |
+| Changing `OWNER_EMAIL` / `CHANNEL_HANDLE` | edit and save `.env`; `apply-env.sh` reloads n8n, `sc.config` applies it (§1) |
 | Weekly diagnosis | Sunday 05:00, report every week |
 | Diagnosis web use | ≤ 10 searches + ≤ 10 fetches, fixed domain list |
 | Candidate models tested per week | 3 |
