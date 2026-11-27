@@ -15,14 +15,15 @@ node fits. Full design: [`docs/PLAN.md`](docs/PLAN.md).
 ## Status
 
 Milestone **M0** (infra) in progress. Done so far: Docker Compose stack, Postgres schema,
-`.env` apply script with launchd agent and tests. Workflows, renderer and prompts come in
-M1–M9 (PLAN §14).
+`.env` apply script with launchd agent and tests, prompts, and the renderer (M4). Workflows
+come in M1–M9 (PLAN §14).
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `docker-compose.yml` | Postgres 16, n8n, Kokoro TTS (renderer added at M4) |
+| `docker-compose.yml` | Postgres 16, n8n, Kokoro TTS, renderer |
+| `renderer/` | Python video renderer: `POST /render` plan → 1080×1920 mp4, plus the checking proxy on `:8899` (PLAN §5) |
 | `db/init.sql` | Databases, roles and tables (PLAN §9) |
 | `.env.example`, `renderer.env.example` | Settings templates; copy to `.env` / `renderer.env` |
 | `scripts/apply-env.sh` | Validates `.env`, writes `state/.env.live`, recreates n8n safely |
@@ -269,4 +270,9 @@ reload; back up the key.
 
 ```sh
 bash tests/apply-env.test.sh
+docker compose build renderer && docker compose run --rm --no-deps renderer python -m pytest   # offline
 ```
+
+Real renders also need assets: one folder of tracks per mood in `assets/music/<mood>/`, and
+optionally `assets/brand/font.ttf` and `assets/brand/card.png` (plain colours and DejaVu Sans
+until then).
