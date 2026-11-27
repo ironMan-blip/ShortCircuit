@@ -6,3 +6,5 @@ data/
 state/
 backups/
 .DS_Store
+__pycache__/
+.pytest_cache/

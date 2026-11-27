@@ -1,0 +1,10 @@
+# Pinned: upgrade on purpose, then rerun the tests (docs/PLAN.md §5).
+fastapi==0.165.0
+pydantic==2.14.4
+uvicorn==0.54.0
+httpx==0.29.0
+pillow==13.0.0
+faster-whisper==1.2.1
+av==18.1.1  # av 19 dropped av.open(metadata_errors=...), which faster-whisper 1.2.1 passes
+playwright==1.65.2
+pytest==9.2.0

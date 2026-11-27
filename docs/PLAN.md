@@ -665,7 +665,9 @@ contact_sheet}` (synchronous, ≤ 10 min). `transcript` is the whisper word list
      the renderer's own API at `127.0.0.1:8000` directly. Chromium therefore also gets
      `--proxy-bypass-list="<-loopback>"` (loopback goes through the proxy too, which refuses
      it), `--disable-quic` and `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`
-     (no traffic around the proxy), and keeps its sandbox on.
+     (no traffic around the proxy), and keeps its sandbox on (the container runs with
+     `renderer/seccomp.json`: Docker's default profile plus the user-namespace syscalls the
+     sandbox needs).
      The proxy also serves n8n's source fetches (`sc.create` step 6): it listens on
      `0.0.0.0:8899` inside the Docker network (no published port), and closes any
      connection after 20 MB or 60 s.

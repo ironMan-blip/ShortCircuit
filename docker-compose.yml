@@ -65,8 +65,22 @@ services:
       retries: 10
       start_period: 60s
 
-  # renderer: added at M4 (§5), build ./renderer, volumes ./data:/data and ./assets:/assets:ro,
-  # env_file renderer.env.
+  # §5. API on renderer:8000 and the checking proxy on renderer:8899, Docker network only (no
+  # published port). Own env file, so an .env change never recreates it mid-render.
+  renderer:
+    build: ./renderer
+    image: shortcircuit-renderer
+    restart: unless-stopped
+    env_file: [renderer.env]  # PEXELS_API_KEY, KOKORO_URL
+    security_opt:
+      # Docker's default profile + the user-namespace syscalls Chromium's sandbox needs.
+      - seccomp=./renderer/seccomp.json
+    volumes:
+      - ./data:/data
+      - ./assets:/assets:ro
+    depends_on:
+      kokoro:
+        condition: service_started
 
 volumes:
   pg:
