@@ -31,7 +31,7 @@ def make(scene, d: float, out: Path, work: Path, cache: Path, brand: Path, warni
             return mix.encode_clip(["-stream_loop", "-1", "-i", src],
                                    f"scale={mix.W}:{mix.H}:force_original_aspect_ratio=increase,"
                                    f"crop={mix.W}:{mix.H},setsar=1", d, out)
-        warnings.append(f"scene {scene.id}: no Pexels result for the query, used a card")
+        warnings.append(f"scene {scene.id}: no Pexels clip (no key or no result), used a card")
     elif v.type == "screenshot":
         png = work / f"shot_{scene.id}.png"
         reason = proxy.check_url(v.url)
@@ -85,7 +85,7 @@ def stock(query: str, cache: Path) -> Path | None:
         os.utime(path)  # keeps used clips past the weekly prune
         return path
     if not PEXELS_API_KEY:
-        raise mix.RenderError("PEXELS_API_KEY is not set")
+        return None  # Pexels is optional: stock scenes become cards
     r = httpx.get("https://api.pexels.com/videos/search", headers={"Authorization": PEXELS_API_KEY}, timeout=30,
                   params={"query": query, "orientation": "portrait", "size": "large", "per_page": 15})
     if r.status_code in (401, 403):

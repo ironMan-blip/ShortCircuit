@@ -635,19 +635,19 @@
     },
     {
       "name": "Guardrails model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1,
       "parameters": {
-        "model": "={{ $env.GROQ_MODEL }}",
+        "modelName": "={{ 'models/' + $env.GEMINI_MODEL }}",
         "options": {
           "temperature": 0,
-          "maxTokensToSample": 8192
+          "maxOutputTokens": 8192
         }
       },
       "credentials": {
-        "groqApi": {
-          "id": "scCredGroq000001",
-          "name": "Groq"
+        "googlePalmApi": {
+          "id": "scCredGemini0001",
+          "name": "Gemini"
         }
       },
       "id": "6784a97d-2c7c-e5e6-ee89-fd80d2d8afe2",

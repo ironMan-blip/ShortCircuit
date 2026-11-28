@@ -141,7 +141,7 @@ return $input.all().map((it, i) => {
 
   // 6a. Guardrails: prompt-injection check on each source text
   w.add(n.guardrailJailbreak('Injection check', '={{ $json.text }}'));
-  w.add(n.groq('Guardrails model', '={{ $env.GROQ_MODEL }}', 0));
+  w.add(n.gemini('Guardrails model', "={{ 'models/' + $env.GEMINI_MODEL }}", 0));
   w.sub('Guardrails model', 'Injection check', 'ai_languageModel');
   w.add(n.set('Clean', [['url', "={{ $('Trim').item.json.url }}"], ['text', "={{ $('Trim').item.json.text }}"], ['flagged', '={{ false }}', 'boolean']]));
   w.add(n.set('Flagged', [['url', "={{ $('Trim').item.json.url }}"], ['flagged', '={{ true }}', 'boolean'], ['error', '={{ $json.error ?? "" }}']]));
