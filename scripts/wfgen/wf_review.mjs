@@ -10,13 +10,16 @@ const DECISIONS = ['Approve', 'Approve with these changes', 'Revise and show me 
 
 // ---------------- sc.review ----------------
 export function scReview() {
-  const w = new WF('sc.review', { saveSuccess: true, description: 'Input {job_id, kind: script|video|needs_human, reason?}. Sends the review form to OWNER_EMAIL and waits (12 h, 48 h for needs_human); then one guarded status change. Called with wait off (PLAN §10.6).' });
+  const w = new WF('sc.review', { saveSuccess: true, description: 'Input {job_id, kind: script|video|needs_human, reason?}. Sends the review form to OWNER_EMAIL and waits (REVIEW_HOURS, 4× for needs_human); then one guarded status change. Called with wait off (PLAN §10.6).' });
   w.add(n.input([['job_id'], ['kind'], ['reason']]));
   w.add(n.code('Kind', `// No node maps a review kind to its state and time limit.
 const i = $input.first().json;
 const state = { script: 'script_review', video: 'video_review', needs_human: 'needs_human' }[i.kind];
 if (!state || !Number.isInteger(Number(i.job_id))) throw new Error('sc.review: bad input ' + JSON.stringify(i));
-return [{ json: { job_id: Number(i.job_id), kind: i.kind, state, hours: i.kind === 'needs_human' ? 48 : 12, reason: String(i.reason ?? '') } }];`));
+// REVIEW_HOURS is checked by apply-env.sh; NEEDS YOU waits 4 times as long (12 h → 48 h).
+const h = Number($env.REVIEW_HOURS);
+if (!Number.isInteger(h) || h < 1 || h > 48) throw new Error('sc.review: REVIEW_HOURS must be 1-48');
+return [{ json: { job_id: Number(i.job_id), kind: i.kind, state, hours: i.kind === 'needs_human' ? 4 * h : h, reason: String(i.reason ?? '') } }];`));
   // 2. take the review: only one open form per job, and only while it is in that state
   w.add(n.pg('Take review', `UPDATE jobs SET review_sent_at = now(), review_url = $2, review_deadline = now() + make_interval(hours => $3), updated_at = now()
 WHERE id = $1 AND status = $4 AND review_sent_at IS NULL

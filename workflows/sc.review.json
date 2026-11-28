@@ -40,7 +40,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// No node maps a review kind to its state and time limit.\nconst i = $input.first().json;\nconst state = { script: 'script_review', video: 'video_review', needs_human: 'needs_human' }[i.kind];\nif (!state || !Number.isInteger(Number(i.job_id))) throw new Error('sc.review: bad input ' + JSON.stringify(i));\nreturn [{ json: { job_id: Number(i.job_id), kind: i.kind, state, hours: i.kind === 'needs_human' ? 48 : 12, reason: String(i.reason ?? '') } }];"
+        "jsCode": "// No node maps a review kind to its state and time limit.\nconst i = $input.first().json;\nconst state = { script: 'script_review', video: 'video_review', needs_human: 'needs_human' }[i.kind];\nif (!state || !Number.isInteger(Number(i.job_id))) throw new Error('sc.review: bad input ' + JSON.stringify(i));\n// REVIEW_HOURS is checked by apply-env.sh; NEEDS YOU waits 4 times as long (12 h → 48 h).\nconst h = Number($env.REVIEW_HOURS);\nif (!Number.isInteger(h) || h < 1 || h > 48) throw new Error('sc.review: REVIEW_HOURS must be 1-48');\nreturn [{ json: { job_id: Number(i.job_id), kind: i.kind, state, hours: i.kind === 'needs_human' ? 4 * h : h, reason: String(i.reason ?? '') } }];"
       },
       "id": "41d72e85-77c4-2e00-9785-3150692c6b5f",
       "position": [
@@ -827,5 +827,5 @@
     "templateCredsSetupCompleted": true
   },
   "tags": [],
-  "description": "Input {job_id, kind: script|video|needs_human, reason?}. Sends the review form to OWNER_EMAIL and waits (12 h, 48 h for needs_human); then one guarded status change. Called with wait off (PLAN §10.6)."
+  "description": "Input {job_id, kind: script|video|needs_human, reason?}. Sends the review form to OWNER_EMAIL and waits (REVIEW_HOURS, 4× for needs_human); then one guarded status change. Called with wait off (PLAN §10.6)."
 }

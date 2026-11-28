@@ -17,7 +17,7 @@ POLL_S=${APPLY_ENV_POLL_S:-60}      # test hook
 WAIT_MIN=${APPLY_ENV_WAIT_MIN:-90}  # test hook
 
 REQUIRED="OWNER_EMAIL CHANNEL_HANDLE BOT_EMAIL TZ PUBLISH_TIME SCHEDULE_CANDIDATES
-PUBLISH_MODE BUFFER_TARGET WEBHOOK_URL GEMINI_MODEL GROQ_MODEL OLLAMA_MODEL
+PUBLISH_MODE BUFFER_TARGET REVIEW_HOURS WEBHOOK_URL GEMINI_MODEL GROQ_MODEL OLLAMA_MODEL
 LLM_CHAIN_SCOUT LLM_CHAIN_WRITER LLM_CHAIN_CHECKER LLM_CHAIN_EDITOR LLM_CHAIN_DIRECTOR
 LLM_CHAIN_CUTTER LLM_CHAIN_SCHEDULER MASTER_MODEL MASTER_EFFORT
 N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD"
@@ -76,6 +76,7 @@ check() {
       PUBLISH_TIME) [[ $val =~ $RE_TIME ]] || { echo "line $n: PUBLISH_TIME must be HH:MM"; return 1; } ;;
       SCHEDULE_CANDIDATES) [[ $val =~ $RE_TIMES ]] || { echo "line $n: SCHEDULE_CANDIDATES must be a comma list of HH:MM"; return 1; } ;;
       BUFFER_TARGET) [[ $val =~ ^[1-9][0-9]?$ ]] || { echo "line $n: BUFFER_TARGET must be a number 1-99"; return 1; } ;;
+      REVIEW_HOURS) [[ $val =~ ^[1-9][0-9]?$ && $val -le 48 ]] || { echo "line $n: REVIEW_HOURS must be a number 1-48"; return 1; } ;;
       WEBHOOK_URL) [[ $val =~ $RE_URL ]] || { echo "line $n: WEBHOOK_URL must be https://host/ with the trailing /"; return 1; } ;;
       N8N_ENCRYPTION_KEY) [ ${#val} -ge 32 ] || { echo "line $n: N8N_ENCRYPTION_KEY must be at least 32 characters"; return 1; } ;;
     esac

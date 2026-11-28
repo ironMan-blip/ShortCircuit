@@ -34,6 +34,7 @@ and the live checks of each milestone (PLAN §14), then M10 hardening and M11 go
 | `scripts/wfgen/` | Builds `workflows/` from code: `node scripts/wfgen/build.mjs` (`validate.mjs` checks every node against the pinned n8n's node types) |
 | `scripts/check-workflows.mjs` | Fails if a mail, YouTube, Drive or Master-tool rule of PLAN §1/§4.8 is broken |
 | `scripts/import-workflows.sh`, `export-workflows.sh` | Into / out of the running n8n |
+| `scripts/setup.sh`, `go-live.sh` | Wizards for the owner-only steps: M0 accounts and first run; M11 channel switch and auto mode |
 | `scripts/backup.sh`, `restore.sh`, `launchd/com.shortcircuit.backup.plist` | Nightly backup, 14 days kept (PLAN §11) |
 | `tests/agents/`, `tests/master/` | Agent fixtures (loaded into Data Tables by `sc.fixtures`) and Master fixtures |
 | `docs/PLAN.md` | The full plan and milestones |
@@ -257,6 +258,10 @@ How to read it:
 - **`"1" … "0..*"`** = how many: one job has zero or more reviews.
 
 ## Setup (macOS)
+
+`bash scripts/setup.sh` walks through every step below and all of M0 (accounts, Tailscale,
+Google Cloud, keys, credentials, music, self-checks). Going live later: `bash scripts/go-live.sh`.
+The manual version:
 
 ```sh
 cp .env.example .env              # fill in; secrets: openssl rand -hex 32 / 24

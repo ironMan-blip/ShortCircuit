@@ -85,6 +85,7 @@ reject_case "gemini:model in cutter chain" LLM_CHAIN_CUTTER "gemini:gemini-2.5-f
 reject_case "bad handle (no @)" CHANNEL_HANDLE "shortcircuittech"
 reject_case "bad zone" TZ "../../etc/passwd"
 reject_case "bad time" PUBLISH_TIME "25:00"
+reject_case "review hours over 48" REVIEW_HOURS 49
 reject_case "quote in value" BOT_EMAIL '"bot@example.com"'
 reject_case "changed encryption key" N8N_ENCRYPTION_KEY "ffffffffffffffffffffffffffffffffff"
 reject_case "changed postgres password" POSTGRES_PASSWORD "other"
