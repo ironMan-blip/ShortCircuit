@@ -422,7 +422,8 @@ note "$(find assets/music -type f \( -iname '*.mp3' -o -iname '*.wav' -o -iname 
 
 # ── 16 ────────────────────────────────────────────────────────────────────
 stage "Self-checks (M0 done-when)"
-check ".env and renderer.env are git-ignored" git check-ignore -q .env renderer.env
+check ".env is git-ignored" git check-ignore -q .env
+check "renderer.env is git-ignored" git check-ignore -q renderer.env
 check "all containers healthy" all_healthy
 check "no .env file visible in the renderer's /data" no_env_files renderer
 check "no .env file visible in n8n's /data" no_env_files n8n
