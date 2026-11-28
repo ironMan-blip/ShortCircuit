@@ -60,7 +60,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// No node checks a form value against a pattern.\nconst raw = String($input.first().json.Job ?? '').trim();\nconst m = /^SC-([0-9]{4,})$/.exec(raw);\nreturn [{ json: { ok: !!m, id: m ? Number(m[1]) : null, job: raw.slice(0, 20) } }];"
+        "jsCode": "// No node checks a form value against a pattern.\nconst raw = String($input.first().json.Job ?? '').trim();\nconst m = /^SC-([0-9]{4,9})$/.exec(raw);\nreturn [{ json: { ok: !!m, id: m ? Number(m[1]) : null, job: raw.slice(0, 20) } }];"
       },
       "id": "63174e5c-ab71-bf71-ae36-57c2f3a8336a",
       "position": [

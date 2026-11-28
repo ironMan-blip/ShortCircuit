@@ -2,7 +2,7 @@
 # Applies a saved .env to n8n, safely (docs/PLAN.md §1, §11).
 # Run by launchd on every save of .env and every 60 s; an unchanged file exits at once.
 # Also run it once by hand at install, before the first `docker compose up -d`:
-# it writes state/.env.live, the only env file the containers get.
+# it writes state/.env.live (n8n) and state/.env.postgres (Postgres only: the POSTGRES_* passwords).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -10,6 +10,7 @@ STATE=$ROOT/state
 LOCK=$STATE/.apply-env.lock
 PENDING=$STATE/.env.pending
 LIVE=$STATE/.env.live
+PGENV=$STATE/.env.postgres
 PREV=$STATE/.env.live.prev
 APPLIED=$STATE/.env.applied.sha256
 REJECTED=$STATE/.env.rejected.sha256
@@ -20,11 +21,11 @@ REQUIRED="OWNER_EMAIL CHANNEL_HANDLE BOT_EMAIL TZ PUBLISH_TIME SCHEDULE_CANDIDAT
 PUBLISH_MODE BUFFER_TARGET REVIEW_HOURS WEBHOOK_URL GEMINI_MODEL GROQ_MODEL OLLAMA_MODEL
 LLM_CHAIN_SCOUT LLM_CHAIN_WRITER LLM_CHAIN_CHECKER LLM_CHAIN_EDITOR LLM_CHAIN_DIRECTOR
 LLM_CHAIN_CUTTER LLM_CHAIN_SCHEDULER MASTER_MODEL
-N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD"
+N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD POSTGRES_N8N_PASSWORD"
 REQUIRED=$(echo $REQUIRED)  # one line, single spaces
 # A reload cannot apply these: a new key makes every credential unreadable, and
 # Postgres keeps the passwords it was created with. Changing them is a manual migration.
-FROZEN="N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD"
+FROZEN="N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD POSTGRES_N8N_PASSWORD"
 
 RE_EMAIL='^[^@,;]+@[^@,;.]+(\.[^@,;.]+)+$'
 RE_HANDLE='^@[A-Za-z0-9._-]{3,30}$'
@@ -43,8 +44,8 @@ notify() {
     -e 'end run' "$*" >/dev/null 2>&1 || true
 }
 
-# Value of key $1 in env file $2 (keys are unique once check has passed).
-get() { awk -v k="$1" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' "$2"; }
+# Value of key $1 in the first of env files $2... that has it (keys are unique once check has passed).
+get() { awk -v k="$1" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' "${@:2}"; }
 
 # Prints the first problem and fails. Never prints a value: some are secrets.
 check() {
@@ -88,7 +89,7 @@ check() {
   done
   if [ -f "$LIVE" ]; then
     for k in $FROZEN; do
-      [ "$(get "$k" "$f")" = "$(get "$k" "$LIVE")" ] || { echo "$k cannot change on a save (manual migration, PLAN §1)"; return 1; }
+      [ "$(get "$k" "$f")" = "$(get "$k" "$LIVE" "$PGENV" 2>/dev/null)" ] || { echo "$k cannot change on a save (manual migration, PLAN §1)"; return 1; }
     done
   fi
 }
@@ -125,7 +126,7 @@ if ! mkdir "$LOCK" 2>/dev/null; then
   rm -rf "$LOCK"
   mkdir "$LOCK" 2>/dev/null || exit 0
 fi
-trap 'rm -rf "$LOCK" "$PENDING"' EXIT
+trap 'rm -rf "$LOCK" "$PENDING" "$PENDING.n8n"' EXIT
 
 [ -f .env ] || exit 0
 # From here on only the copy is used, so a save made during this run gets its own run.
@@ -155,7 +156,10 @@ done
 
 # n8n settings that follow from a .env value, so the owner writes each value once.
 printf '\n# set by scripts/apply-env.sh\nGENERIC_TIMEZONE=%s\nN8N_EDITOR_BASE_URL=%s\nDB_POSTGRESDB_PASSWORD=%s\n' \
-  "$(get TZ "$PENDING")" "$(get WEBHOOK_URL "$PENDING")" "$(get POSTGRES_PASSWORD "$PENDING")" >>"$PENDING"
+  "$(get TZ "$PENDING")" "$(get WEBHOOK_URL "$PENDING")" "$(get POSTGRES_N8N_PASSWORD "$PENDING")" >>"$PENDING"
+# Code nodes can read n8n's $env: keep the superuser and sc_app passwords out of it.
+(umask 077 && grep '^POSTGRES_' "$PENDING" >"$PGENV" && grep -v '^POSTGRES_' "$PENDING" >"$PENDING.n8n")
+mv "$PENDING.n8n" "$PENDING"
 
 [ -f "$LIVE" ] && cp -p "$LIVE" "$PREV"
 mv "$PENDING" "$LIVE"

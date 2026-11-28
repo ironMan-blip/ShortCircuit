@@ -28,7 +28,7 @@ and the live checks of each milestone (PLAN §14), then M10 hardening and M11 go
 | `renderer/` | Python video renderer: `POST /render` plan → 1080×1920 mp4, plus the checking proxy on `:8899` (PLAN §5) |
 | `db/init.sql` | Databases, roles and tables (PLAN §9) |
 | `.env.example`, `renderer.env.example` | Settings templates; copy to `.env` / `renderer.env` |
-| `scripts/apply-env.sh` | Validates `.env`, writes `state/.env.live`, recreates n8n safely |
+| `scripts/apply-env.sh` | Validates `.env`, writes `state/.env.live` (n8n) and `state/.env.postgres`, recreates n8n safely |
 | `launchd/com.shortcircuit.apply-env.plist` | Runs `apply-env.sh` on each `.env` save and every 60 s |
 | `tests/apply-env.test.sh` | Tests for `apply-env.sh` with stub docker/osascript |
 | `workflows/` | The n8n workflows `sc.*.json` and `credentials.stub.json` (ids and names, no secrets) |

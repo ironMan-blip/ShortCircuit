@@ -39,8 +39,8 @@ def music_moods() -> list[str]:
 
 
 def job_id_ok(job_id: str) -> str:
-    # [0-9], not \d: \d also matches non-ASCII digits. The id becomes a folder name.
-    if not re.fullmatch(r"SC-[0-9]{4,}", job_id):
+    # [0-9], not \d: \d also matches non-ASCII digits. The id becomes a folder name; 9 digits fit a serial.
+    if not re.fullmatch(r"SC-[0-9]{4,9}", job_id):
         raise ValueError("job_id must look like SC-0042")
     return job_id
 

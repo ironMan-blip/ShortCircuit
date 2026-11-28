@@ -198,7 +198,7 @@
           "value": {
             "agent": "editor",
             "prompt": "editor",
-            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
+            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '').replace(/<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi, '[tag]') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
             "chain": "={{ $env.LLM_CHAIN_EDITOR }}",
             "exclude_provider": "",
             "temperature": "={{ 0.4 }}"
@@ -461,7 +461,7 @@
           "value": {
             "agent": "cutter",
             "prompt": "cutter",
-            "user_content": "={{ '<plan>' + JSON.stringify($('Claim').first().json.plan) + '</plan>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '') + '</owner_notes>\\n<primary_url>' + ($('Claim').first().json.brief?.primary_url ?? 'none') + '</primary_url>' }}",
+            "user_content": "={{ '<plan>' + JSON.stringify($('Claim').first().json.plan) + '</plan>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '').replace(/<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi, '[tag]') + '</owner_notes>\\n<primary_url>' + ($('Claim').first().json.brief?.primary_url ?? 'none') + '</primary_url>' }}",
             "chain": "={{ $env.LLM_CHAIN_CUTTER }}",
             "exclude_provider": "",
             "temperature": "={{ 0.4 }}"
@@ -595,7 +595,7 @@
           "value": {
             "agent": "editor",
             "prompt": "editor",
-            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Cutter').first().json.json.narration_change ?? '') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
+            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Cutter').first().json.json.narration_change ?? '').replace(/<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi, '[tag]') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
             "chain": "={{ $env.LLM_CHAIN_EDITOR }}",
             "exclude_provider": "",
             "temperature": "={{ 0.4 }}"
@@ -1459,7 +1459,7 @@
           "value": {
             "agent": "cutter",
             "prompt": "cutter",
-            "user_content": "={{ '<plan>' + JSON.stringify($('Plan ready').first().json.plan) + '</plan>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '') + '</feedback>\\n<primary_url>' + ($('Claim').first().json.brief?.primary_url ?? 'none') + '</primary_url>' }}",
+            "user_content": "={{ '<plan>' + JSON.stringify($('Plan ready').first().json.plan) + '</plan>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '').replace(/<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi, '[tag]') + '</feedback>\\n<primary_url>' + ($('Claim').first().json.brief?.primary_url ?? 'none') + '</primary_url>' }}",
             "chain": "={{ $env.LLM_CHAIN_CUTTER }}",
             "exclude_provider": "",
             "temperature": "={{ 0.4 }}"

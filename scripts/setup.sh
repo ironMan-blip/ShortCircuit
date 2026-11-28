@@ -242,7 +242,7 @@ say "Makes .env and renderer.env from the examples (kept if they exist; both are
 [[ -f .env ]] || { (umask 077 && cp .env.example .env); note "made .env from .env.example"; }
 [[ -f renderer.env ]] || { (umask 077 && cp renderer.env.example renderer.env); note "made renderer.env from renderer.env.example"; }
 chmod 600 .env renderer.env
-for k in N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD; do
+for k in N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD POSTGRES_N8N_PASSWORD; do
   if [[ -z "$(_existing "$k" || true)" ]]; then
     n=24; [[ $k == N8N_ENCRYPTION_KEY ]] && n=32
     put_env "$k" "$(openssl rand -hex $n)"

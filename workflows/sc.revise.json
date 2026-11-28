@@ -207,7 +207,7 @@
           "value": {
             "agent": "editor",
             "prompt": "editor",
-            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
+            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '').replace(/<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi, '[tag]') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
             "chain": "={{ $env.LLM_CHAIN_EDITOR }}",
             "exclude_provider": "",
             "temperature": "={{ 0.4 }}"

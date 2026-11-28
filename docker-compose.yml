@@ -1,5 +1,6 @@
 # docs/PLAN.md §10.1, §11. Images are pinned: upgrade on purpose, after the release notes.
-# Containers get state/.env.live, the copy that scripts/apply-env.sh checked and wrote.
+# Containers get state/.env.live, the copy that scripts/apply-env.sh checked and wrote; only
+# Postgres gets the POSTGRES_* passwords (state/.env.postgres), so n8n's $env never holds them.
 # Compose reads it on the host; no container mounts state/. Run apply-env.sh once before
 # the first `docker compose up -d`.
 # Values below are fixed by the plan; `environment` wins over env_file, so .env cannot change them.
@@ -8,9 +9,10 @@ services:
   postgres:
     image: postgres:16.15
     restart: unless-stopped
-    env_file: [state/.env.live]  # POSTGRES_PASSWORD, POSTGRES_APP_PASSWORD (read at first init only)
+    env_file: [state/.env.postgres]  # POSTGRES_*_PASSWORD (read at first init only)
     environment:
       POSTGRES_DB: n8n
+    networks: [db]
     volumes:
       - pg:/var/lib/postgresql/data
       - ./db:/docker-entrypoint-initdb.d:ro
@@ -28,7 +30,7 @@ services:
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: postgres
       DB_POSTGRESDB_DATABASE: n8n
-      DB_POSTGRESDB_USER: postgres  # DB_POSTGRESDB_PASSWORD comes from .env.live (set by apply-env.sh)
+      DB_POSTGRESDB_USER: n8n_app  # owns db n8n only, not a superuser; password from .env.live (apply-env.sh)
       N8N_PROXY_HOPS: "1"
       N8N_DEFAULT_BINARY_DATA_MODE: filesystem
       N8N_RESTRICT_FILE_ACCESS_TO: /data;/prompts  # prompts are read at run time (§12)
@@ -40,6 +42,7 @@ services:
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
       N8N_RUNNERS_ENABLED: "true"
+    networks: [db, render]
     ports:
       - "127.0.0.1:5678:5678"  # localhost only; tailscale serve passes tailnet HTTPS to it
     volumes:
@@ -59,6 +62,7 @@ services:
   kokoro:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.10.0
     restart: unless-stopped
+    networks: [render]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8880/health"]
       interval: 30s
@@ -72,6 +76,7 @@ services:
     build: ./renderer
     image: shortcircuit-renderer
     restart: unless-stopped
+    networks: [render]  # opens web pages: no route to Postgres
     env_file: [renderer.env]  # PEXELS_API_KEY, KOKORO_URL
     security_opt:
       # Docker's default profile + the user-namespace syscalls Chromium's sandbox needs.
@@ -82,6 +87,10 @@ services:
     depends_on:
       kokoro:
         condition: service_started
+
+networks:
+  db:
+  render:
 
 volumes:
   pg:

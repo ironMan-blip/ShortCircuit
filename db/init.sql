@@ -1,8 +1,10 @@
 -- Runs once, when the Postgres volume is first created (docs/PLAN.md §9, §10.2).
 -- The n8n database is made by the image (POSTGRES_DB=n8n); this adds the app database,
--- its tables and the sc_app role used by the `SC Postgres` credential.
+-- its tables, the sc_app role used by the `SC Postgres` credential and the n8n_app role n8n
+-- itself logs in as (owner of the n8n database, not a superuser).
 \set ON_ERROR_STOP on
 \getenv app_pw POSTGRES_APP_PASSWORD
+\getenv n8n_pw POSTGRES_N8N_PASSWORD
 \if :{?app_pw}
   SELECT :'app_pw' = '' AS app_pw_empty \gset
 \else
@@ -11,10 +13,21 @@
 \if :app_pw_empty
   DO $$ BEGIN RAISE EXCEPTION 'POSTGRES_APP_PASSWORD is not set'; END $$;
 \endif
+\if :{?n8n_pw}
+  SELECT :'n8n_pw' = '' AS n8n_pw_empty \gset
+\else
+  \set n8n_pw_empty true
+\endif
+\if :n8n_pw_empty
+  DO $$ BEGIN RAISE EXCEPTION 'POSTGRES_N8N_PASSWORD is not set'; END $$;
+\endif
 
 -- Not a superuser and no pg_* file/program roles, so no COPY ... PROGRAM and no file access.
 CREATE ROLE sc_app LOGIN PASSWORD :'app_pw';
+CREATE ROLE n8n_app LOGIN PASSWORD :'n8n_pw';
 CREATE DATABASE shortcircuit;
+-- The owner may connect and create tables in its public schema (pg_database_owner, PG 15+).
+ALTER DATABASE n8n OWNER TO n8n_app;
 
 -- sc_app may connect to its own database only.
 REVOKE ALL ON DATABASE postgres, n8n, shortcircuit FROM PUBLIC;

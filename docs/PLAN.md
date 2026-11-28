@@ -112,7 +112,7 @@ A changed hash →
      `LLM_CHAIN_EDITOR` and `LLM_CHAIN_CUTTER` never name `gemini` (they carry owner
      notes, and Gemini's free tier may train on prompts, §4). `TZ` is
      a zone in the zoneinfo database. `PUBLISH_TIME` and `SCHEDULE_CANDIDATES` are `HH:MM`.
-   - Keys that a reload cannot apply are unchanged from `state/.env.live`:
+   - Keys that a reload cannot apply are unchanged from `state/.env.live` / `state/.env.postgres`:
      `N8N_ENCRYPTION_KEY` (a new key makes every stored credential unreadable) and
      `POSTGRES_*` (Postgres keeps the password it was created with). Changing them is a
      manual migration, not a save.
@@ -124,10 +124,13 @@ A changed hash →
    is not killed halfway. Still busy after 90 min → exits without saving any hash; the
    next run starts over.
 4. Appends the n8n settings that follow from `.env` values (`GENERIC_TIMEZONE` = `TZ`,
-   `N8N_EDITOR_BASE_URL` = `WEBHOOK_URL`, `DB_POSTGRESDB_PASSWORD` = `POSTGRES_PASSWORD`;
-   `.env` may not set them), moves the copy over `state/.env.live` (keeping the old one as
-   `state/.env.live.prev`) and runs `docker compose up -d --no-deps n8n`, which recreates
-   n8n alone with the new values (Postgres reads the same file, and must not restart).
+   `N8N_EDITOR_BASE_URL` = `WEBHOOK_URL`, `DB_POSTGRESDB_PASSWORD` = `POSTGRES_N8N_PASSWORD`;
+   `.env` may not set them), moves the `POSTGRES_*` lines to `state/.env.postgres` (Postgres'
+   only env file: Code nodes can read n8n's `$env`, so n8n never holds the superuser or `sc_app`
+   password; it logs in as `n8n_app`, owner of database `n8n`, not a superuser), moves the rest
+   over `state/.env.live` (keeping the old one as `state/.env.live.prev`) and runs
+   `docker compose up -d --no-deps n8n`, which recreates n8n alone with the new values
+   (Postgres must not restart).
 5. Checks that n8n is healthy again and that `$env` inside it shows the new values; then
    saves the copy's hash as applied. If not: puts `state/.env.live.prev` back, runs
    `up -d n8n` again so the old values are live, sends one macOS notification, and saves

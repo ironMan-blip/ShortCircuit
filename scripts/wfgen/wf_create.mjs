@@ -1,6 +1,6 @@
 // sc.produce, sc.create, sc.revise (PLAN §6, §10.6). M2.
 import * as n from './lib.mjs';
-import { ESC, RULES, TAGS } from './js.mjs';
+import { ESC, RULES, TAGS, tagsafeExpr } from './js.mjs';
 const { WF } = n;
 
 const BUFFER = ['video_review', 'video_editing', 'approved', 'awaiting_upload', 'scheduled'];
@@ -194,7 +194,7 @@ return [{ json: { brief: b, scout_provider: r.provider } }];`, { err: true }));
   w.add(n.iff('Redo?', [['={{ $json.ok === true && $json.json?.verdict === "redo" }}', 'boolean:true']]));
   w.c('Clean check?', 'Master review', 0).chain('Master review', 'Redo?');
   w.c('Master review', 'Redo?', 1); // ask_master never throws; an error item is "no verdict"
-  const [w3, v3] = writeAndCheck(w, ' redo', { writerUser: `'<brief>' + ${BRIEF_NO_TEXT} + '</brief>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '') + '</feedback>\\n<previous_script>' + JSON.stringify($('${v1}').first().json.script) + '</previous_script>'`, briefExpr: BRIEF });
+  const [w3, v3] = writeAndCheck(w, ' redo', { writerUser: `'<brief>' + ${BRIEF_NO_TEXT} + '</brief>\\n<feedback>' + ${tagsafeExpr("$('Master review').first().json.json.feedback")} + '</feedback>\\n<previous_script>' + JSON.stringify($('${v1}').first().json.script) + '</previous_script>'`, briefExpr: BRIEF });
   w.c('Redo?', w3, 0);
 
   // 10. finish: one Set per path, one guarded update
@@ -242,7 +242,7 @@ WHERE id = $1 AND status = 'revising' RETURNING id;`, ["$('Claim').first().json.
   w.c('Rounds used?', 'Finish rounds used', 0).c('Finish rounds used', 'Review rounds used').c('Finish rounds used', 'Fail', 1);
   const BRIEF = "$('Claim').first().json.brief";
   const [e1, v1] = writeAndCheck(w, '', { agent: 'editor', briefExpr: BRIEF,
-    writerUser: `'<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...${BRIEF}, source_texts: undefined }) + '</brief>'` });
+    writerUser: `'<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + ${tagsafeExpr("$('Claim').first().json.notes")} + '</owner_notes>\\n<brief>' + JSON.stringify({ ...${BRIEF}, source_texts: undefined }) + '</brief>'` });
   w.c('Rounds used?', e1, 1);
   w.add(n.pg('Finish', `UPDATE jobs SET status = $2, script = $3::jsonb, check_result = $4::jsonb, providers = providers || $5::jsonb,
   round = round + 1, notes = NULL, review_sent_at = NULL, review_url = NULL, attempts = 0, locked_at = NULL, last_error = NULL, updated_at = now()

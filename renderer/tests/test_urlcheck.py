@@ -38,6 +38,17 @@ def test_allowed():
     ("93.184.216.34", True), ("127.0.0.1", False), ("10.0.0.1", False), ("172.16.0.1", False),
     ("192.168.1.1", False), ("169.254.169.254", False), ("100.64.0.1", False), ("0.0.0.0", False),
     ("::1", False), ("fe80::1", False), ("fd00::1", False), ("224.0.0.1", False), ("not-an-ip", False),
+    ("64:ff9b::7f00:1", False), ("64:ff9b::a9fe:a9fe", False), ("64:ff9b::5db8:d822", True),  # NAT64
+    ("64:ff9b:1::a00:1", False),
 ])
 def test_is_public(addr, ok):
     assert is_public(addr) is ok
+
+
+@pytest.mark.parametrize("url", ["http://kokoro:8880/v1/audio/voices", "https://127.0.0.1/", "https://n8n:5678/"])
+def test_clip_download_refuses_internal_hops(url):
+    import httpx
+    import mix
+    import visuals
+    with pytest.raises(mix.RenderError):
+        visuals.check_hop(httpx.Request("GET", url))

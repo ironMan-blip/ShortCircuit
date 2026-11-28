@@ -1494,7 +1494,7 @@
           "value": {
             "agent": "writer",
             "prompt": "writer",
-            "user_content": "={{ '<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '') + '</feedback>\\n<previous_script>' + JSON.stringify($('Verdict 1').first().json.script) + '</previous_script>' }}",
+            "user_content": "={{ '<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '').replace(/<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi, '[tag]') + '</feedback>\\n<previous_script>' + JSON.stringify($('Verdict 1').first().json.script) + '</previous_script>' }}",
             "chain": "={{ $env.LLM_CHAIN_WRITER }}",
             "exclude_provider": "",
             "temperature": "={{ 0.4 }}"

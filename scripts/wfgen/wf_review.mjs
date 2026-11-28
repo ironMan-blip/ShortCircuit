@@ -137,7 +137,7 @@ export function scCancel() {
   }));
   w.add(n.code('Job id', `// No node checks a form value against a pattern.
 const raw = String($input.first().json.Job ?? '').trim();
-const m = /^SC-([0-9]{4,})$/.exec(raw);
+const m = /^SC-([0-9]{4,9})$/.exec(raw);
 return [{ json: { ok: !!m, id: m ? Number(m[1]) : null, job: raw.slice(0, 20) } }];`));
   w.add(n.iff('Valid?', [['={{ $json.ok }}', 'boolean:true']]));
   w.add(n.pg('Cancel', `WITH u AS (

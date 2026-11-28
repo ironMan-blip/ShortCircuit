@@ -16,6 +16,7 @@ def client(dirs):
     lambda b: b.update(job_id="SC-12"),
     lambda b: b.update(job_id="SC-0042\n"),
     lambda b: b.update(job_id="SC-٠٠٤٢"),               # non-ASCII digits
+    lambda b: b.update(job_id="SC-" + "9" * 300),        # folder name too long
     lambda b: b["plan"].update(music_mood="../../data"),
     lambda b: b["plan"].update(music_mood="sad"),         # no such folder
     lambda b: b["plan"].update(voice="xx_unknown"),

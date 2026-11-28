@@ -17,6 +17,7 @@ PORT = 8899
 ALLOWED_PORTS = {80, 443}
 MAX_BYTES = 20 * 1024 * 1024
 MAX_SECONDS = 60
+NAT64 = ipaddress.ip_network("64:ff9b::/96")
 REFUSED = b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 BAD_GATEWAY = b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 
@@ -36,6 +37,8 @@ def is_public(addr: str) -> bool:
         return False
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
+    elif ip in NAT64:  # 64:ff9b::7f00:1 is 127.0.0.1 behind a NAT64 gateway, yet is_global
+        ip = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
     return ip.is_global and not ip.is_multicast
 
 

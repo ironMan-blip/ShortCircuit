@@ -1,6 +1,6 @@
 // sc.render (PLAN §5, §6, §10.6). M5.
 import * as n from './lib.mjs';
-import { ESC } from './js.mjs';
+import { ESC, tagsafeExpr } from './js.mjs';
 import { writeAndCheck } from './wf_create.mjs';
 const { WF } = n;
 
@@ -44,14 +44,14 @@ export function scRender() {
   w.c('Renderer', 'Route');
 
   const BRIEF = `${C}.brief`;
-  const editorUser = (notesExpr) => `'<script>' + JSON.stringify(${C}.script) + '</script>\\n<owner_notes>' + String(${notesExpr} ?? '') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...${BRIEF}, source_texts: undefined }) + '</brief>'`;
+  const editorUser = (notesExpr) => `'<script>' + JSON.stringify(${C}.script) + '</script>\\n<owner_notes>' + ${tagsafeExpr(notesExpr)} + '</owner_notes>\\n<brief>' + JSON.stringify({ ...${BRIEF}, source_texts: undefined }) + '</brief>'`;
   // 2. script notes → Editor → Checker
   const [e1, v1] = writeAndCheck(w, ' notes', { agent: 'editor', briefExpr: BRIEF, writerUser: editorUser(`${C}.notes`) });
   w.c('Route', e1, 0);
   w.add(n.iff('Notes clean?', [['={{ $json.pass }}', 'boolean:true']]));
   w.c(v1, 'Notes clean?');
   // 3. video notes → Cutter (narration changes go to Editor + Checker first)
-  w.add(n.llm('Cutter', 'cutter', `'<plan>' + JSON.stringify(${C}.plan) + '</plan>\\n<owner_notes>' + String(${C}.notes ?? '') + '</owner_notes>\\n<primary_url>' + (${BRIEF}?.primary_url ?? 'none') + '</primary_url>'`));
+  w.add(n.llm('Cutter', 'cutter', `'<plan>' + JSON.stringify(${C}.plan) + '</plan>\\n<owner_notes>' + ${tagsafeExpr(`${C}.notes`)} + '</owner_notes>\\n<primary_url>' + (${BRIEF}?.primary_url ?? 'none') + '</primary_url>'`));
   w.c('Route', 'Cutter', 2).c('Cutter', 'Fail', 1);
   w.add(n.iff('Narration change?', [['={{ $json.json.narration_change }}', 'string:notEmpty']]));
   w.c('Cutter', 'Narration change?');
@@ -108,7 +108,7 @@ WHERE id = $1 AND status = $5 RETURNING id, $6::text AS reason;`,
   w.c('Master rounds left?', 'Master review', 0);
   w.add(n.iff('Redo?', [['={{ $json.ok === true && $json.json?.verdict === "redo" }}', 'boolean:true']]));
   w.c('Master review', 'Redo?').c('Master review', 'Redo?', 1);
-  w.add(n.llm('Cutter redo', 'cutter', `'<plan>' + JSON.stringify($('Plan ready').first().json.plan) + '</plan>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '') + '</feedback>\\n<primary_url>' + (${BRIEF}?.primary_url ?? 'none') + '</primary_url>'`));
+  w.add(n.llm('Cutter redo', 'cutter', `'<plan>' + JSON.stringify($('Plan ready').first().json.plan) + '</plan>\\n<feedback>' + ${tagsafeExpr("$('Master review').first().json.json.feedback")} + '</feedback>\\n<primary_url>' + (${BRIEF}?.primary_url ?? 'none') + '</primary_url>'`));
   w.c('Redo?', 'Cutter redo', 0).c('Cutter redo', 'Fail', 1);
   w.add(n.code('Plan check redo', PLAN_CHECK("$input.first().json.json", "$('Plan ready').first().json.script")));
   w.c('Cutter redo', 'Plan check redo');

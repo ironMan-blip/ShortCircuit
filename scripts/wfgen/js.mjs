@@ -12,9 +12,12 @@ const cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job
 `;
 
 // Data goes into prompts between tags; a page must not be able to close our tag (PLAN §12).
-export const TAGS = `const TAGS = /<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi;
+const TAG_RE = `/<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi`;
+export const TAGS = `const TAGS = ${TAG_RE};
 const tagsafe = (s) => String(s ?? '').replace(TAGS, '[tag]');
 `;
+// The same, inline in an n8n expression (prompt text built outside a Code node).
+export const tagsafeExpr = (e) => `String(${e} ?? '').replace(${TAG_RE}, '[tag]')`;
 // Code checks a schema cannot express (PLAN §4.2): word count, title length, fact ids.
 export const RULES = (scriptExpr, briefExpr) => `// No node counts words or checks fact ids against the brief.
 const s = ${scriptExpr};

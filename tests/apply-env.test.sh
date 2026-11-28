@@ -48,7 +48,8 @@ setup() {  # fresh project dir with a valid .env
   cp "$SRC/scripts/apply-env.sh" "$R/scripts/"
   sed -e 's/^N8N_ENCRYPTION_KEY=$/N8N_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef/' \
     -e 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=pgpass1/' \
-    -e 's/^POSTGRES_APP_PASSWORD=$/POSTGRES_APP_PASSWORD=apppass1/' "$SRC/.env.example" >"$R/.env"
+    -e 's/^POSTGRES_APP_PASSWORD=$/POSTGRES_APP_PASSWORD=apppass1/' \
+    -e 's/^POSTGRES_N8N_PASSWORD=$/POSTGRES_N8N_PASSWORD=n8npass1/' "$SRC/.env.example" >"$R/.env"
 }
 run() { PATH="$T/bin:$PATH" STUB_DIR="$R/stub" ROOT="$R" APPLY_ENV_POLL_S=0 "$@" bash "$R/scripts/apply-env.sh"; }
 run_wait0() { PATH="$T/bin:$PATH" STUB_DIR="$R/stub" ROOT="$R" APPLY_ENV_POLL_S=0 APPLY_ENV_WAIT_MIN=0 bash "$R/scripts/apply-env.sh"; }
@@ -67,8 +68,9 @@ reject_case() {  # name, key, bad value
 
 # 1. first install: live written with derived keys, no n8n container to recreate
 setup; run
-ok "install writes .env.live" 'live_has "OWNER_EMAIL=you@example.com" && live_has "GENERIC_TIMEZONE=Asia/Dhaka" && live_has "DB_POSTGRESDB_PASSWORD=pgpass1" && live_has "N8N_EDITOR_BASE_URL=https://your-mac.your-tailnet.ts.net/"'
+ok "install writes .env.live" 'live_has "OWNER_EMAIL=you@example.com" && live_has "GENERIC_TIMEZONE=Asia/Dhaka" && live_has "DB_POSTGRESDB_PASSWORD=n8npass1" && live_has "N8N_EDITOR_BASE_URL=https://your-mac.your-tailnet.ts.net/"'
 ok "install saves applied hash" applied
+ok "POSTGRES_* only in .env.postgres" '! grep -q "^POSTGRES_" "$R/state/.env.live" && [ "$(grep -c "^POSTGRES_" "$R/state/.env.postgres")" = 3 ] && [ "$(stat -f %Lp "$R/state/.env.postgres")" = 600 ]'
 ok "state/ is mode 700" '[ "$(stat -f %Lp "$R/state")" = 700 ]'
 ok "no pending copy or lock left" '[ ! -e "$R/state/.env.pending" ] && [ ! -e "$R/state/.apply-env.lock" ]'
 
@@ -89,6 +91,7 @@ reject_case "review hours over 48" REVIEW_HOURS 49
 reject_case "quote in value" BOT_EMAIL '"bot@example.com"'
 reject_case "changed encryption key" N8N_ENCRYPTION_KEY "ffffffffffffffffffffffffffffffffff"
 reject_case "changed postgres password" POSTGRES_PASSWORD "other"
+reject_case "changed n8n db password" POSTGRES_N8N_PASSWORD "other"
 
 setup; run; echo "NODE_OPTIONS=--require=/data/x.js" >>"$R/.env"; run
 ok "unknown key refused" '[ "$(notes)" = 1 ] && ! live_has "NODE_OPTIONS=--require=/data/x.js"'

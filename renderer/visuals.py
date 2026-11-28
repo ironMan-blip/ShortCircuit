@@ -99,7 +99,10 @@ def stock(query: str, cache: Path) -> Path | None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".part")
     size = 0
-    with httpx.stream("GET", best["link"], follow_redirects=True, timeout=120) as resp:
+    # shortcut: checks each hop but httpx resolves again (no rebind protection); the 20 MB proxy cap
+    # is too small for clips. Fine while links come from the Pexels API; route via the proxy if not.
+    with httpx.stream("GET", best["link"], follow_redirects=True, timeout=120,
+                      event_hooks={"request": [check_hop]}) as resp:
         resp.raise_for_status()
         with tmp.open("wb") as f:
             for chunk in resp.iter_bytes(1 << 20):
@@ -109,6 +112,13 @@ def stock(query: str, cache: Path) -> Path | None:
                 f.write(chunk)
     tmp.replace(path)
     return path
+
+
+def check_hop(request: httpx.Request) -> None:
+    """Every request of a clip download, redirects included, must go to a public https host."""
+    reason = proxy.check_url(str(request.url))
+    if reason:
+        raise mix.RenderError(f"Pexels clip url refused ({reason}): {request.url.host}")
 
 
 def launch(playwright, proxy_port: int = proxy.PORT):
@@ -132,7 +142,10 @@ def screenshot(url: str, out: Path) -> str | None:
                                         is_mobile=True, has_touch=True)
                 page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                 page.wait_for_timeout(2000)  # let late images and fonts arrive
-                height = min(max(page.evaluate("document.documentElement.scrollHeight"), 640), 640 * 3)
+                try:  # the page's own script can make scrollHeight any value at all
+                    height = min(max(int(page.evaluate("document.documentElement.scrollHeight")), 640), 640 * 3)
+                except (TypeError, ValueError, OverflowError):
+                    height = 640
                 page.screenshot(path=str(out), full_page=True, clip={"x": 0, "y": 0, "width": 360, "height": height})
             finally:
                 browser.close()
