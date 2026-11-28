@@ -1,0 +1,626 @@
+{
+  "id": "sc4019c8be44bdd7",
+  "name": "sc.channel",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "caller",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "05f20922-19f0-2fca-4617-ece86216c3e3",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Check handle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node checks a value against a regex without changing it.\nconst h = $env.CHANNEL_HANDLE ?? '';\nreturn [{ json: { handle: h, ok: /^@[A-Za-z0-9._-]{3,30}$/.test(h) } }];"
+      },
+      "id": "0c555ab8-485d-c750-e1a4-10475e0a3abb",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Handle valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c82561ec-215a-6e31-807c-eedf3b3bd25e",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "85b7dbe6-c4e2-aef0-a446-7d0ff3a8951d",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Alert bad handle",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "bad_handle",
+            "subject": "CHANNEL_HANDLE is not a valid handle",
+            "text": "={{ 'CHANNEL_HANDLE in .env is \"' + $json.handle + '\". It must be the handle exactly as the channel page shows it, @ included (3-30 of A-Z a-z 0-9 . _ -). Nothing is uploaded until it is fixed.' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "99053b15-6c42-0155-db1b-3849ae46345e",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Bad handle",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a6bbc91a-e73d-d21c-0533-f735470a9cd0",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "4443aee1-83b2-79f7-6a95-c13c7f5bca0d",
+              "name": "reason",
+              "value": "bad_handle",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "89a434fc-0fd7-5a8a-20f5-2d4aa9fe15fb",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Handle channel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/channels",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "id"
+            },
+            {
+              "name": "forHandle",
+              "value": "={{ $json.handle }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "scCredYouTube001",
+          "name": "YouTube Channel"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "id": "c95b96f5-9a98-94e3-6aab-f259525cf80d",
+      "position": [
+        780,
+        220
+      ]
+    },
+    {
+      "name": "Credential channel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/channels",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "id"
+            },
+            {
+              "name": "mine",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "scCredYouTube001",
+          "name": "YouTube Channel"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "id": "8588af8f-8bbb-466a-21c2-2486bb98e373",
+      "position": [
+        1040,
+        220
+      ]
+    },
+    {
+      "name": "Compare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node compares two API results and picks one of three outcomes.\nconst want = $('Handle channel').first().json.items?.[0]?.id ?? null;\nconst have = $('Credential channel').first().json.items?.[0]?.id ?? null;\nconst handle = $('Check handle').first().json.handle;\nif (!want) return [{ json: { ok: false, reason: 'handle_not_found', alert: { key: 'handle_not_found', subject: 'No channel has the handle ' + handle,\n  text: 'YouTube finds no channel for CHANNEL_HANDLE \"' + handle + '\" (exactly as written in .env). Fix the value in .env; nothing is uploaded until then.' } } }];\nif (want !== have) return [{ json: { ok: false, reason: 'channel_mismatch', alert: { key: 'channel_mismatch', subject: 'YouTube credential is for another channel',\n  text: 'The YouTube Channel credential is connected to channel ' + have + ', but ' + handle + ' is channel ' + want + '. Nothing was uploaded. Re-connect the credential to ' + handle + ' or fix CHANNEL_HANDLE.' } } }];\nreturn [{ json: { ok: true, channel_id: want } }];"
+      },
+      "id": "8f6ca372-9d44-4cfd-1001-514926746ce1",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Match?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ed23e9d5-33a3-992b-2bfe-ef6f8601a945",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "4d204f5a-1375-c223-e0bb-c16df1614280",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Alert mismatch",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ $json.alert.key }}",
+            "subject": "={{ $json.alert.subject }}",
+            "text": "={{ $json.alert.text }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "e593712c-f591-cce1-7547-df0aa56daffc",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Refused",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8eb6d874-7175-919f-2747-2673a32b3eca",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "b5557737-68bc-1a67-2947-d7f41f9c247f",
+              "name": "reason",
+              "value": "={{ $('Compare').first().json.reason }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d7ddf060-c9c7-3e55-d47d-ee7010bcf204",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c364e7cd-25ef-8288-236d-31f1ed69a94a",
+              "name": "ok",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "5849253c-0c07-f889-4c9f-f2e5b69e834a",
+              "name": "channel_id",
+              "value": "={{ $json.channel_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "57221f37-5cea-da24-fae8-6f150c4ea833",
+      "position": [
+        1820,
+        220
+      ]
+    },
+    {
+      "name": "YouTube error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "06e7223b-88d7-d464-0370-627fd53901dc",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "b673e0e0-4fef-7b45-7fb2-825b040b844c",
+              "name": "reason",
+              "value": "youtube_error",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0ccd29b8-7ffe-fea4-4bdf-b240473d5166",
+      "position": [
+        1300,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Check handle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check handle": {
+      "main": [
+        [
+          {
+            "node": "Handle valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle valid?": {
+      "main": [
+        [
+          {
+            "node": "Handle channel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert bad handle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle channel": {
+      "main": [
+        [
+          {
+            "node": "Credential channel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "YouTube error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Credential channel": {
+      "main": [
+        [
+          {
+            "node": "Compare",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "YouTube error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare": {
+      "main": [
+        [
+          {
+            "node": "Match?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match?": {
+      "main": [
+        [
+          {
+            "node": "OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert mismatch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert bad handle": {
+      "main": [
+        [
+          {
+            "node": "Bad handle",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Bad handle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert mismatch": {
+      "main": [
+        [
+          {
+            "node": "Refused",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refused",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Channel guard (PLAN §1, §10.6). Output {ok, channel_id} or {ok:false, reason}. Checks the YouTube credential is the channel of CHANNEL_HANDLE."
+}

@@ -1,0 +1,200 @@
+{
+  "id": "scfd29baf975933f",
+  "name": "sc.produce",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Daily 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "71794d8d-cb17-c69d-a29c-88c43da0784f",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Top up",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH c AS (\n  SELECT count(*) FILTER (WHERE status IN ('video_review', 'video_editing', 'approved', 'awaiting_upload', 'scheduled'))::int AS buffer,\n         count(*) FILTER (WHERE status IN ('new', 'script_review', 'needs_human', 'revising', 'script_approved'))::int AS pipeline\n  FROM jobs),\nins AS (\n  INSERT INTO jobs (status)\n  SELECT 'new' FROM c, generate_series(1, GREATEST(0, LEAST(2, $1::int - c.buffer - c.pipeline)))\n  RETURNING id)\nSELECT c.buffer, c.pipeline, (SELECT count(*) FROM ins)::int AS inserted FROM c;",
+        "options": {
+          "queryReplacement": "={{ [Number($env.BUFFER_TARGET ?? 4)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "035036df-3e7e-abb8-7477-8849b138d691",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Buffer low?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3948aeae-3143-5377-ab25-db0e7837d5b5",
+              "leftValue": "={{ $json.buffer }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "fffe8be9-524a-3b4a-bbe0-1e51001863ef",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Alert buffer low",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ 'buffer_low' }}",
+            "subject": "={{ 'Only ' + $json.buffer + ' videos are booked ahead' }}",
+            "text": "={{ 'The buffer holds ' + $json.buffer + ' finished videos with a slot (target ' + ($env.BUFFER_TARGET ?? 4) + ', ' + $json.pipeline + ' more in the pipeline). Daily slots may stay empty until it refills.' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "5414309d-b241-ff1b-7edf-8d36d4457c0f",
+      "position": [
+        780,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 08:00": {
+      "main": [
+        [
+          {
+            "node": "Top up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Top up": {
+      "main": [
+        [
+          {
+            "node": "Buffer low?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buffer low?": {
+      "main": [
+        [
+          {
+            "node": "Alert buffer low",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Daily 08:00: while buffer + pipeline < BUFFER_TARGET, insert new jobs (at most 2 a day). Alerts buffer_low (PLAN §6)."
+}

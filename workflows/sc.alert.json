@@ -1,0 +1,284 @@
+{
+  "id": "sc643afdb1cc3a79",
+  "name": "sc.alert",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "key",
+              "type": "any"
+            },
+            {
+              "name": "subject",
+              "type": "any"
+            },
+            {
+              "name": "text",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "8a0c0434-d15a-a1b5-0f51-07b9df53f2b7",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Claim alert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO alerts (key, last_sent_at) VALUES ($1, now())\nON CONFLICT (key) DO UPDATE SET last_sent_at = now()\n  WHERE alerts.last_sent_at IS NULL OR alerts.last_sent_at < now() - interval '24 hours'\nRETURNING key;",
+        "options": {
+          "queryReplacement": "={{ [$json.key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "580a45e0-61dd-4aa0-18c7-e19ae8e8b9dd",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "New today?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c16e571b-9f71-e740-fda5-018a37c10f17",
+              "leftValue": "={{ $json.key }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "26d0425f-88c2-dd63-1eb5-8dd2cd44fe43",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Build mail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node HTML-escapes text.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst i = $('Input').first().json;\nreturn [{ json: { subject: 'ShortCircuit ALERT: ' + i.subject,\n  html: page('ALERT: ' + i.subject, '<pre style=\"white-space:pre-wrap;font-family:inherit\">' + esc(i.text) + '</pre><p style=\"color:#666\">key: ' + esc(i.key) + '</p>') } }];"
+      },
+      "id": "98ada5b0-ad2c-bbad-eba7-20a82afffb4b",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Mail",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sca84aad68e9b1c7",
+          "mode": "list",
+          "cachedResultName": "sc.mail"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "subject": "={{ $json.subject }}",
+            "html": "={{ $json.html }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "html",
+              "displayName": "html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "87997060-c3ee-5579-e602-d21e9cc98934",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Unclaim on mail error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE alerts SET last_sent_at = NULL WHERE key = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Input').first().json.key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "0d582e40-f795-c2dc-1b25-3bf3fac98b29",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Mail failed",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "parameters": {
+        "errorMessage": "={{ 'sc.alert could not mail ' + $('Input').first().json.key }}"
+      },
+      "id": "68d3086e-ce93-879a-3bb0-637d0b797a55",
+      "position": [
+        1560,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Claim alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim alert": {
+      "main": [
+        [
+          {
+            "node": "New today?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New today?": {
+      "main": [
+        [
+          {
+            "node": "Build mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build mail": {
+      "main": [
+        [
+          {
+            "node": "Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mail": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Unclaim on mail error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unclaim on mail error": {
+      "main": [
+        [
+          {
+            "node": "Mail failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Input {key, subject, text}. One alert per key per 24 h, mailed through sc.mail."
+}

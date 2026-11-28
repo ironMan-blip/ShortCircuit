@@ -1,0 +1,16 @@
+[
+  {
+    "name": "rumour not picked",
+    "prompt": "scout_rank",
+    "input": "<candidates>[{\"title\": \"Raspberry Pi 6 on sale now\", \"url\": \"https://www.raspberrypi.com/news/pi6\", \"source\": \"The Verge\", \"score\": 50, \"date\": \"2026-11-27T08:00:00Z\"}, {\"title\": \"Pi 6 review: double the speed\", \"url\": \"https://arstechnica.com/gadgets/pi6-review\", \"source\": \"Ars Technica\", \"score\": 50, \"date\": \"2026-11-27T09:00:00Z\"}, {\"title\": \"RUMOR: Apple to ban all third-party chargers tomorrow, insider says\", \"url\": \"https://www.reddit.com/r/gadgets/comments/xyz/rumor\", \"source\": \"Reddit r/gadgets\", \"score\": 9000, \"date\": \"2026-11-27T10:00:00Z\"}, {\"title\": \"Leaked: Pixel 12 might launch next week\", \"url\": \"https://news.ycombinator.com/item?id=1\", \"source\": \"Hacker News\", \"score\": 800, \"date\": \"2026-11-27T11:00:00Z\"}, {\"title\": \"Ollama adds image models\", \"url\": \"https://github.com/ollama/ollama\", \"source\": \"GitHub Trending\", \"score\": 99, \"date\": \"2026-11-27T07:00:00Z\"}]</candidates>\n<recent_topics>[]</recent_topics>",
+    "expect": "{\"urls_from\": [\"https://www.raspberrypi.com/news/pi6\", \"https://arstechnica.com/gadgets/pi6-review\", \"https://www.reddit.com/r/gadgets/comments/xyz/rumor\", \"https://news.ycombinator.com/item?id=1\", \"https://github.com/ollama/ollama\"], \"not_urls\": [\"https://www.reddit.com/r/gadgets/comments/xyz/rumor\", \"https://news.ycombinator.com/item?id=1\"], \"min_urls\": 2}",
+    "provider": ""
+  },
+  {
+    "name": "recent topic not repeated",
+    "prompt": "scout_rank",
+    "input": "<candidates>[{\"title\": \"Raspberry Pi 6 on sale now\", \"url\": \"https://www.raspberrypi.com/news/pi6\", \"source\": \"The Verge\", \"score\": 50, \"date\": \"2026-11-27T08:00:00Z\"}, {\"title\": \"Pi 6 review: double the speed\", \"url\": \"https://arstechnica.com/gadgets/pi6-review\", \"source\": \"Ars Technica\", \"score\": 50, \"date\": \"2026-11-27T09:00:00Z\"}, {\"title\": \"RUMOR: Apple to ban all third-party chargers tomorrow, insider says\", \"url\": \"https://www.reddit.com/r/gadgets/comments/xyz/rumor\", \"source\": \"Reddit r/gadgets\", \"score\": 9000, \"date\": \"2026-11-27T10:00:00Z\"}, {\"title\": \"Leaked: Pixel 12 might launch next week\", \"url\": \"https://news.ycombinator.com/item?id=1\", \"source\": \"Hacker News\", \"score\": 800, \"date\": \"2026-11-27T11:00:00Z\"}, {\"title\": \"Ollama adds image models\", \"url\": \"https://github.com/ollama/ollama\", \"source\": \"GitHub Trending\", \"score\": 99, \"date\": \"2026-11-27T07:00:00Z\"}]</candidates>\n<recent_topics>[\"Raspberry Pi 6 launch\"]</recent_topics>",
+    "expect": "{\"urls_from\": [\"https://www.raspberrypi.com/news/pi6\", \"https://arstechnica.com/gadgets/pi6-review\", \"https://www.reddit.com/r/gadgets/comments/xyz/rumor\", \"https://news.ycombinator.com/item?id=1\", \"https://github.com/ollama/ollama\"], \"not_urls\": [\"https://www.raspberrypi.com/news/pi6\", \"https://www.reddit.com/r/gadgets/comments/xyz/rumor\"], \"min_urls\": 1}",
+    "provider": ""
+  }
+]

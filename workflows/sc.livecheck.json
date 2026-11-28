@@ -1,0 +1,1301 @@
+{
+  "id": "sc6a85faeb2052d5",
+  "name": "sc.livecheck",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "7 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "b5aa2e32-29af-1a54-74e0-7ca18c5c40ed",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Channel",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc4019c8be44bdd7",
+          "mode": "list",
+          "cachedResultName": "sc.channel"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "caller": "sc.livecheck"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "caller",
+              "displayName": "caller",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "d09339ae-e7e9-22aa-d9ce-69552e162cf0",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Channel ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3dadd084-0b6d-fa4b-961f-f397a9b955c2",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d800f7b6-5084-1edf-e7ab-b6cb152a3934",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Uploads playlist",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/channels",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "contentDetails"
+            },
+            {
+              "name": "id",
+              "value": "={{ $('Channel').first().json.channel_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "scCredYouTube001",
+          "name": "YouTube Channel"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "id": "abbbc086-cce1-36ea-4633-dbc83133e415",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Recent uploads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/playlistItems",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "contentDetails"
+            },
+            {
+              "name": "maxResults",
+              "value": "50"
+            },
+            {
+              "name": "playlistId",
+              "value": "={{ $json.items[0].contentDetails.relatedPlaylists.uploads }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "scCredYouTube001",
+          "name": "YouTube Channel"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "id": "41d5df32-f2be-554b-a9d2-629e1a6f5555",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Videos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet,status,statistics"
+            },
+            {
+              "name": "id",
+              "value": "={{ ($json.items ?? []).map(i => i.contentDetails.videoId).join(',') || 'none' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "scCredYouTube001",
+          "name": "YouTube Channel"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "id": "e7fbd7e2-1b6c-fc61-951b-4454d2844562",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Jobs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, status, youtube_id, channel_id, slot_at, slot_date, drive_file_id, script->>'title' AS title, 'SC-' || lpad(id::text, 4, '0') AS job\nFROM jobs WHERE status NOT IN ('done', 'failed') OR (youtube_id IS NULL AND updated_at > now() - interval '30 days');",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "id": "a230792b-9216-080e-5abf-0b1747c6a1a5",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node matches videos to jobs by a hidden tag and decides each job's next state.\nconst ch = $('Channel').first().json.channel_id;\nconst vids = ($('Videos').first().json.items ?? []).filter((v) => v.snippet?.channelId === ch);\nconst jobs = $input.all().map((i) => i.json).filter((j) => j.id);\nconst byTag = new Map(); const byTitle = new Map();\nfor (const v of vids) { for (const t of v.snippet.tags ?? []) { const m = /^sc-([0-9]{4,})$/i.exec(t); if (m) byTag.set(Number(m[1]), v); } byTitle.set(String(v.snippet.title).trim(), v); }\nconst acts = [];\nfor (const j of jobs) {\n  const v = byTag.get(j.id) ?? (j.title ? byTitle.get(String(j.title).trim()) : undefined);\n  const ours = !j.channel_id || j.channel_id === ch;\n  if (j.status === 'awaiting_upload' && v) acts.push({ type: 'scheduled', id: j.id, youtube_id: v.id });\n  else if (v && !j.youtube_id && j.status !== 'awaiting_upload') acts.push({ type: 'save_id', id: j.id, youtube_id: v.id, job: j.job, status: j.status });\n  if (j.status === 'scheduled' && ours && j.youtube_id) {\n    const sv = vids.find((x) => x.id === j.youtube_id) ?? v;\n    if (sv && sv.status?.privacyStatus === 'public') acts.push({ type: 'live', id: j.id });\n    else if (!sv) acts.push({ type: 'gone_check', id: j.id, youtube_id: j.youtube_id });\n  }\n}\nconst stats = vids.map((v) => ({ id: v.id, views: Number(v.statistics?.viewCount ?? 0), likes: Number(v.statistics?.likeCount ?? 0), comments: Number(v.statistics?.commentCount ?? 0) }));\nreturn [{ json: { acts, stats } }];"
+      },
+      "id": "26cd9e73-1b3c-da21-446e-09db90b8267d",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "One action",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "parameters": {
+        "fieldToSplitOut": "acts",
+        "options": {
+          "destinationFieldName": "a"
+        }
+      },
+      "id": "8805a7e8-6174-86fb-fc26-ed839f46ae93",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ef9e606e-053b-4fc9-a632-cc05266ddd78",
+                    "leftValue": "={{ $json.a.type }}",
+                    "rightValue": "scheduled",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "scheduled"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1eb9c70a-90d5-8de2-4dd3-c6a8c0da62bc",
+                    "leftValue": "={{ $json.a.type }}",
+                    "rightValue": "save_id",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "save_id"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "566da431-e958-19c6-e7bd-d8957d2efcad",
+                    "leftValue": "={{ $json.a.type }}",
+                    "rightValue": "live",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "live"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e584f980-495d-6f85-b033-f70c4975d29b",
+                    "leftValue": "={{ $json.a.type }}",
+                    "rightValue": "gone_check",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gone_check"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "76ce4b8a-cbde-3ed0-6f21-f24633dd1792",
+      "position": [
+        2340,
+        0
+      ]
+    },
+    {
+      "name": "To scheduled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = 'scheduled', youtube_id = $2, channel_id = $3, updated_at = now() WHERE id = $1 AND status = 'awaiting_upload';",
+        "options": {
+          "queryReplacement": "={{ [$json.a.id, $json.a.youtube_id, $('Channel').first().json.channel_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "9b47a5cd-b3cf-5982-d8ed-5cc3c377f68d",
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "name": "Save id",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET youtube_id = $2, channel_id = $3, updated_at = now() WHERE id = $1 AND youtube_id IS NULL RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.a.id, $json.a.youtube_id, $('Channel').first().json.channel_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "c44cb4f8-cc13-d6f3-7e11-2832bd9278de",
+      "position": [
+        2600,
+        220
+      ]
+    },
+    {
+      "name": "Delete in Studio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "17545fdb-9670-7995-6347-aa7d914338c8",
+              "leftValue": "={{ $env.PUBLISH_MODE !== 'auto' && ['cancelled', 'rejected'].includes($('Action').item.json.a.status) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "864346e8-bb67-f334-5cb9-bc42559d0231",
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "name": "Alert Studio",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ 'cancel_in_studio:' + $('Action').item.json.a.job }}",
+            "subject": "={{ $('Action').item.json.a.job + ': delete it in Studio' }}",
+            "text": "={{ $('Action').item.json.a.job + ' was cancelled or rejected, but its video is on the channel (' + $('Action').item.json.a.youtube_id + '). Delete it in YouTube Studio.' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "6403d1d9-d40a-2d6a-e403-bf99eccc5f4d",
+      "position": [
+        3120,
+        0
+      ]
+    },
+    {
+      "name": "To live",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = 'live', updated_at = now() WHERE id = $1 AND status = 'scheduled';",
+        "options": {
+          "queryReplacement": "={{ [$json.a.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "09dd58e3-890d-6d03-c791-b5f8c572e84c",
+      "position": [
+        2600,
+        440
+      ]
+    },
+    {
+      "name": "Confirm gone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "id"
+            },
+            {
+              "name": "id",
+              "value": "={{ $json.a.youtube_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "scCredYouTube001",
+          "name": "YouTube Channel"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "id": "b2fff018-09c4-fabb-bc7e-b7d60f3a7221",
+      "position": [
+        2600,
+        660
+      ]
+    },
+    {
+      "name": "Gone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fedde7eb-efc6-7296-027e-7a390d05c70d",
+              "leftValue": "={{ Array.isArray($json.items) && $json.items.length === 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "bbfef107-0ca6-c01f-9abc-475ee94d07ea",
+      "position": [
+        2860,
+        220
+      ]
+    },
+    {
+      "name": "To cancelled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = 'cancelled', slot_at = NULL, slot_date = NULL, updated_at = now() WHERE id = $1 AND status = 'scheduled' AND channel_id = $2;",
+        "options": {
+          "queryReplacement": "={{ [$('Action').item.json.a.id, $('Channel').first().json.channel_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "7183b7ec-87a5-f359-6f5c-76345727dc91",
+      "position": [
+        3120,
+        220
+      ]
+    },
+    {
+      "name": "To finish",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, drive_file_id FROM jobs WHERE status = 'live'\n  OR (status = 'scheduled' AND channel_id IS NOT NULL AND channel_id <> $1 AND slot_at < now() - interval '24 hours');",
+        "options": {
+          "queryReplacement": "={{ [$('Channel').first().json.channel_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "id": "836dcf01-cbbf-9fe8-5da8-28a1ede2756c",
+      "position": [
+        2080,
+        220
+      ]
+    },
+    {
+      "name": "Has Drive file?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dcf65370-6b46-5c86-f455-24637865adb0",
+              "leftValue": "={{ $json.drive_file_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "220eb05f-aae8-30a6-fee6-89bacdfe8edc",
+      "position": [
+        2600,
+        880
+      ]
+    },
+    {
+      "name": "Delete Drive file",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "parameters": {
+        "operation": "deleteFile",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.drive_file_id }}",
+          "mode": "id"
+        },
+        "options": {
+          "deletePermanently": true
+        }
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "scCredDriveBot01",
+          "name": "Drive Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 20000,
+      "onError": "continueErrorOutput",
+      "id": "3928cd95-afea-d8b4-6069-86865ebee9c8",
+      "position": [
+        2860,
+        440
+      ]
+    },
+    {
+      "name": "Already gone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "da64c6c4-3406-f3ed-0992-5eca22bf2a09",
+              "leftValue": "={{ /not ?found|404/i.test(String($json.error?.message ?? $json.error ?? '')) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "1c9cfa19-7fa7-ce03-9160-14f850ecf750",
+      "position": [
+        3120,
+        440
+      ]
+    },
+    {
+      "name": "To done",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = 'done', drive_file_id = NULL, drive_link = NULL, updated_at = now() WHERE id = $1 AND status IN ('live', 'scheduled');",
+        "options": {
+          "queryReplacement": "={{ [$('To finish').item.json.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "b761c946-e80b-f204-34a8-0ef6e768f84c",
+      "position": [
+        3380,
+        0
+      ]
+    },
+    {
+      "name": "Missed slots",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT to_char(slot_date, 'YYYY-MM-DD') AS day, 'SC-' || lpad(id::text, 4, '0') AS job, status FROM jobs\nWHERE slot_at < now() - interval '1 hour' AND slot_at > now() - interval '3 days' AND status NOT IN ('live', 'done', 'failed', 'cancelled', 'rejected')\n  AND (channel_id IS NULL OR channel_id = $1);",
+        "options": {
+          "queryReplacement": "={{ [$('Channel').first().json.channel_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "executeOnce": true,
+      "id": "43e48fce-8e41-0742-035e-bfa1f5d7bdd5",
+      "position": [
+        2080,
+        440
+      ]
+    },
+    {
+      "name": "Alert missed",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ 'slot_missed:' + $json.day }}",
+            "subject": "={{ 'No Short went live on ' + $json.day }}",
+            "text": "={{ 'The slot of ' + $json.job + ' (' + $json.day + ') passed more than an hour ago and the video is not live; the job is ' + $json.status + '.' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "c9b43c54-aa94-93d7-d4bb-ba202f789d39",
+      "position": [
+        2600,
+        1100
+      ]
+    },
+    {
+      "name": "Metrics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO metrics (job_id, age_h, views, likes, comments)\nSELECT j.id, a.age, (s->>'views')::int, (s->>'likes')::int, (s->>'comments')::int\nFROM jsonb_array_elements($1::jsonb) s\nJOIN jobs j ON j.youtube_id = s->>'id' AND j.status IN ('live', 'done')\nCROSS JOIN (VALUES (24), (48), (168)) a(age)\nWHERE j.slot_at <= now() - make_interval(hours => a.age) AND j.slot_at > now() - make_interval(hours => a.age + 24)\nON CONFLICT DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('Match').first().json.stats)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "executeOnce": true,
+      "id": "e67048c7-8260-8989-b96f-7ac828442c7a",
+      "position": [
+        2080,
+        660
+      ]
+    },
+    {
+      "name": "Missed slots found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "18b7ad36-a0e6-8c81-01d2-cadcf22b393a",
+              "leftValue": "={{ $json.day }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "6942ab09-4356-8a68-6745-4f1311e68330",
+      "position": [
+        2340,
+        220
+      ]
+    },
+    {
+      "name": "To finish found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "583d5e0f-ac99-6ba3-3720-e5b36aeeceef",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "406c9f78-2443-83e6-e35b-690d618da2e4",
+      "position": [
+        2340,
+        440
+      ]
+    }
+  ],
+  "connections": {
+    "Hourly": {
+      "main": [
+        [
+          {
+            "node": "Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Channel": {
+      "main": [
+        [
+          {
+            "node": "Channel ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Channel ok?": {
+      "main": [
+        [
+          {
+            "node": "Uploads playlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uploads playlist": {
+      "main": [
+        [
+          {
+            "node": "Recent uploads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent uploads": {
+      "main": [
+        [
+          {
+            "node": "Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Videos": {
+      "main": [
+        [
+          {
+            "node": "Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobs": {
+      "main": [
+        [
+          {
+            "node": "Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match": {
+      "main": [
+        [
+          {
+            "node": "One action",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "To finish",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Missed slots",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One action": {
+      "main": [
+        [
+          {
+            "node": "Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action": {
+      "main": [
+        [
+          {
+            "node": "To scheduled",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save id",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "To live",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirm gone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save id": {
+      "main": [
+        [
+          {
+            "node": "Delete in Studio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete in Studio?": {
+      "main": [
+        [
+          {
+            "node": "Alert Studio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm gone": {
+      "main": [
+        [
+          {
+            "node": "Gone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gone?": {
+      "main": [
+        [
+          {
+            "node": "To cancelled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To finish": {
+      "main": [
+        [
+          {
+            "node": "To finish found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Drive file?": {
+      "main": [
+        [
+          {
+            "node": "Delete Drive file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "To done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Drive file": {
+      "main": [
+        [
+          {
+            "node": "To done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Already gone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already gone?": {
+      "main": [
+        [
+          {
+            "node": "To done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missed slots": {
+      "main": [
+        [
+          {
+            "node": "Missed slots found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missed slots found?": {
+      "main": [
+        [
+          {
+            "node": "Alert missed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To finish found?": {
+      "main": [
+        [
+          {
+            "node": "Has Drive file?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Hourly: sc.channel → the channel's last 50 uploads → matches them to jobs by the sc-#### tag → scheduled / live / done / cancelled, saves metrics, alerts slot_missed. Any API error → no job changes (PLAN §10.6)."
+}

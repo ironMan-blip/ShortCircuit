@@ -1,0 +1,1235 @@
+{
+  "id": "sc2d1a0dfcd39f25",
+  "name": "sc.llm",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "agent",
+              "type": "any"
+            },
+            {
+              "name": "prompt",
+              "type": "any"
+            },
+            {
+              "name": "user_content",
+              "type": "any"
+            },
+            {
+              "name": "chain",
+              "type": "any"
+            },
+            {
+              "name": "exclude_provider",
+              "type": "any"
+            },
+            {
+              "name": "temperature",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "07faca1b-1647-77f0-5bff-c7e8e98c602b",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Render running?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT EXISTS (SELECT 1 FROM jobs WHERE render_started_at > now() - interval '20 minutes') AS rendering;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "9c48aa8e-07aa-31fc-7351-853e6115ab50",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Read prompt",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ '/prompts/' + $('Input').first().json.prompt + '.md' }}",
+        "options": {}
+      },
+      "id": "b68282d4-fbfe-69df-e300-c73f84aafa67",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Prompt text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "text",
+        "destinationKey": "text",
+        "options": {}
+      },
+      "id": "1c551040-f419-7d15-2efd-002ff769cd61",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Read schema",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ '/prompts/' + $('Input').first().json.prompt + '.schema.json' }}",
+        "options": {}
+      },
+      "id": "a3a23d5d-1079-e353-57e9-8e2111866b35",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Schema text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "text",
+        "destinationKey": "text",
+        "options": {}
+      },
+      "id": "ac61cd93-ee2b-03d2-fb42-283e9273e1f4",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Read style",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/prompts/style.md",
+        "options": {}
+      },
+      "id": "cad4a6a7-b0f1-5ff1-b138-2b0c6dba7d27",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Style text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "text",
+        "destinationKey": "text",
+        "options": {}
+      },
+      "id": "21d8bcf2-6e85-d99c-d9d7-112c3fe5ef7b",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Entries",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1aae165-bc91-698a-a6f7-fe3a36fb8bd2",
+              "name": "entries",
+              "value": "={{ String($('Input').first().json.chain ?? '').split(',').map(s => s.trim()).filter(s => s) }}",
+              "type": "array"
+            },
+            {
+              "id": "a4519284-6640-be85-b0ed-aca33c2a3d3b",
+              "name": "system_prompt",
+              "value": "={{ $('Prompt text').first().json.text.replace('<!-- include style.md -->', $json.text) }}",
+              "type": "string"
+            },
+            {
+              "id": "ee0a0cce-58d8-1229-98be-4db8ff050caa",
+              "name": "schema",
+              "value": "={{ $('Schema text').first().json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "f4c1b9f8-72b5-e320-4b71-5f563ed96a81",
+              "name": "user_content",
+              "value": "={{ $('Input').first().json.user_content }}",
+              "type": "string"
+            },
+            {
+              "id": "6e23b400-3420-56ac-c008-d4f7a457458f",
+              "name": "exclude",
+              "value": "={{ $('Input').first().json.exclude_provider ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "584ca0f1-368a-a7a4-debf-fbbdb7aa1730",
+              "name": "rendering",
+              "value": "={{ $('Render running?').first().json.rendering === true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "6ba94e8d-76a3-25fd-dba4-6efdf49564f7",
+              "name": "temperature",
+              "value": "={{ $('Input').first().json.temperature ?? 0.4 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7cbdc0cf-de82-27ca-a14f-b084d587b7e2",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "One per provider",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "parameters": {
+        "fieldToSplitOut": "entries",
+        "options": {
+          "destinationFieldName": "entry"
+        },
+        "include": "allOtherFields"
+      },
+      "id": "b21a2b24-03f7-05b6-db28-f8310faf927e",
+      "position": [
+        2340,
+        0
+      ]
+    },
+    {
+      "name": "Provider and model",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "include": "all",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "85386162-967e-21a9-847e-97d2771fe4ae",
+              "name": "provider",
+              "value": "={{ $json.entry.split(':')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "74093b06-c6ea-7fbf-23de-dfb5b964addc",
+              "name": "model",
+              "value": "={{ $json.entry.includes(':') ? $json.entry.slice($json.entry.indexOf(':') + 1) : $env[$json.entry.toUpperCase() + '_MODEL'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2f93e12c-3201-a0fa-d84a-eb9b3276a7cd",
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "name": "Drop excluded",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cb2abde5-a8b3-0913-33e2-61237603e095",
+              "leftValue": "={{ $json.provider }}",
+              "rightValue": "={{ $json.exclude }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "3f538a3c-75f1-c564-acc0-270aec2bcd13",
+              "leftValue": "={{ $json.provider === 'ollama' && $json.rendering }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "4770005b-2b37-ae13-d832-19223416e031",
+              "leftValue": "={{ ['gemini', 'groq', 'ollama'].includes($json.provider) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "id": "4e78f436-3d43-3da3-3e90-ede8e31d00ca",
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "name": "Next provider",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "parameters": {
+        "options": {}
+      },
+      "id": "3f399236-ab5b-921b-f8a0-0ad9a90f1787",
+      "position": [
+        14820,
+        0
+      ]
+    },
+    {
+      "name": "Which provider",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "286f32e3-53ff-d166-8dde-127e2c5c0e27",
+                    "leftValue": "={{ $json.provider }}",
+                    "rightValue": "gemini",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gemini"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "71488364-3baf-df1b-e104-ca9c58c52159",
+                    "leftValue": "={{ $json.provider }}",
+                    "rightValue": "groq",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "groq"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "8f355630-0b35-5d9d-d45c-e6963f2ce911",
+                    "leftValue": "={{ $json.provider }}",
+                    "rightValue": "ollama",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ollama"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "none"
+        }
+      },
+      "id": "67c58299-881c-f6d8-5e40-a956bf188950",
+      "position": [
+        15080,
+        0
+      ]
+    },
+    {
+      "name": "No provider left",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "parameters": {
+        "errorMessage": "={{ 'sc.llm: no provider left in chain \"' + $('Input').first().json.chain + '\" for ' + $('Input').first().json.agent + ' (excluded: ' + ($('Input').first().json.exclude_provider || 'none') + ', ollama skipped while rendering: ' + $('Render running?').first().json.rendering + ')' }}"
+      },
+      "id": "90b98bb5-584a-22fa-87d8-fad3a8072266",
+      "position": [
+        15340,
+        0
+      ]
+    },
+    {
+      "name": "All providers failed",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "parameters": {
+        "errorMessage": "={{ 'sc.llm: every provider failed for ' + $('Input').first().json.agent + ': ' + $input.all().map(i => (i.json.provider ?? '?') + ' → ' + String(i.json.error?.message ?? i.json.error ?? 'error').slice(0, 300)).join(' | ') }}"
+      },
+      "id": "03d3df55-0aaa-17c6-fd91-91169365ca00",
+      "position": [
+        15080,
+        220
+      ]
+    },
+    {
+      "name": "Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "480ddcae-2e46-248f-5f59-104a71bd1c9e",
+              "name": "ok",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "55668fbb-5711-721c-c43e-84bc8c2b13dd",
+              "name": "provider",
+              "value": "={{ $('Which provider').item.json.provider }}",
+              "type": "string"
+            },
+            {
+              "id": "4962b018-34ed-04e3-db5c-d2f2bf0631d7",
+              "name": "model",
+              "value": "={{ $('Which provider').item.json.model }}",
+              "type": "string"
+            },
+            {
+              "id": "3424fae5-2c20-d1e8-c114-01a8a3538572",
+              "name": "json",
+              "value": "={{ $json.output }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8b1fae52-b3cf-0226-4102-de38b8e12c4c",
+      "position": [
+        14560,
+        0
+      ]
+    },
+    {
+      "name": "Tag error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b00ea3d7-900b-7036-00fc-e3d5263cfd05",
+              "name": "provider",
+              "value": "={{ $('Which provider').item.json.provider }}",
+              "type": "string"
+            },
+            {
+              "id": "0a608b15-fdb3-1057-4236-3fdecc1604d7",
+              "name": "error",
+              "value": "={{ $json.error?.message ?? $json.error ?? \"error\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "70f931d8-6401-4573-cb4f-629835476baa",
+      "position": [
+        14560,
+        220
+      ]
+    },
+    {
+      "name": "Chain gemini",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.user_content }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "={{ $json.system_prompt }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 10000,
+      "id": "ea387e09-caf3-c1fa-3e69-0bd8c91a0d70",
+      "position": [
+        15340,
+        220
+      ]
+    },
+    {
+      "name": "Model gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "parameters": {
+        "modelName": "={{ 'models/' + $json.model }}",
+        "options": {
+          "temperature": "={{ $json.temperature }}",
+          "maxOutputTokens": 8192
+        }
+      },
+      "credentials": {
+        "googlePalmApi": {
+          "id": "scCredGemini0001",
+          "name": "Gemini"
+        }
+      },
+      "id": "19d50ed2-c193-3227-a6f7-b537e4a3b118",
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "name": "Parser gemini",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={{ $json.schema }}",
+        "autoFix": true
+      },
+      "id": "7accdc5b-4d0b-676f-83ba-0a51fdd12e70",
+      "position": [
+        15280,
+        400
+      ]
+    },
+    {
+      "name": "Output gemini?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d41af18a-5acb-8c8c-6036-c730692f79ab",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "54c5fc66-8ad8-e2f5-682d-c454cccae222",
+      "position": [
+        14300,
+        0
+      ]
+    },
+    {
+      "name": "Chain groq",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.user_content }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "={{ $json.system_prompt }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 10000,
+      "id": "326bf765-e23e-8433-f3a8-9995cfd1346d",
+      "position": [
+        15340,
+        440
+      ]
+    },
+    {
+      "name": "Model groq",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "={{ $json.model }}",
+        "options": {
+          "temperature": "={{ $json.temperature }}",
+          "maxTokensToSample": 8192
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "scCredGroq000001",
+          "name": "Groq"
+        }
+      },
+      "id": "3e31ff6c-6b33-ffef-461e-58da545b7f5c",
+      "position": [
+        0,
+        440
+      ]
+    },
+    {
+      "name": "Parser groq",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={{ $json.schema }}",
+        "autoFix": true
+      },
+      "id": "fd417adf-2dc5-57c4-eb5c-d3dcdaae7bde",
+      "position": [
+        15280,
+        620
+      ]
+    },
+    {
+      "name": "Output groq?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4dc41713-7622-6926-d675-e3d591814740",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "99ca6c55-7c93-80fb-e20d-0420b5715390",
+      "position": [
+        14300,
+        220
+      ]
+    },
+    {
+      "name": "Chain ollama",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.user_content }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "={{ $json.system_prompt }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 10000,
+      "id": "29b7d894-c92b-81e5-70c0-8984bc65708a",
+      "position": [
+        15340,
+        660
+      ]
+    },
+    {
+      "name": "Model ollama",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "={{ $json.model }}",
+        "options": {
+          "temperature": "={{ $json.temperature }}",
+          "numCtx": 16384,
+          "keepAlive": "10m",
+          "think": false,
+          "format": "json"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "scCredOllama0001",
+          "name": "Ollama"
+        }
+      },
+      "id": "493bffef-9959-0991-1712-15379388c84f",
+      "position": [
+        0,
+        660
+      ]
+    },
+    {
+      "name": "Parser ollama",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={{ $json.schema }}",
+        "autoFix": true
+      },
+      "id": "fcc612f4-a012-4012-226c-edeb8f120936",
+      "position": [
+        15280,
+        840
+      ]
+    },
+    {
+      "name": "Output ollama?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bed2e2af-e24b-7592-1942-ae7f25c73155",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "98ad53f0-f291-0508-ffed-a57499b2d0d6",
+      "position": [
+        14300,
+        440
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Render running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render running?": {
+      "main": [
+        [
+          {
+            "node": "Read prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read prompt": {
+      "main": [
+        [
+          {
+            "node": "Prompt text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt text": {
+      "main": [
+        [
+          {
+            "node": "Read schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read schema": {
+      "main": [
+        [
+          {
+            "node": "Schema text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schema text": {
+      "main": [
+        [
+          {
+            "node": "Read style",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read style": {
+      "main": [
+        [
+          {
+            "node": "Style text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Style text": {
+      "main": [
+        [
+          {
+            "node": "Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entries": {
+      "main": [
+        [
+          {
+            "node": "One per provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One per provider": {
+      "main": [
+        [
+          {
+            "node": "Provider and model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Provider and model": {
+      "main": [
+        [
+          {
+            "node": "Drop excluded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drop excluded": {
+      "main": [
+        [
+          {
+            "node": "Next provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next provider": {
+      "main": [
+        [
+          {
+            "node": "All providers failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Which provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which provider": {
+      "main": [
+        [
+          {
+            "node": "Chain gemini",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chain groq",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chain ollama",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No provider left",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Model gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Chain gemini",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Parser gemini",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser gemini": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Chain gemini",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chain gemini": {
+      "main": [
+        [
+          {
+            "node": "Output gemini?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output gemini?": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Model groq": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Chain groq",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Parser groq",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser groq": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Chain groq",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chain groq": {
+      "main": [
+        [
+          {
+            "node": "Output groq?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output groq?": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Model ollama": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Chain ollama",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Parser ollama",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser ollama": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Chain ollama",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chain ollama": {
+      "main": [
+        [
+          {
+            "node": "Output ollama?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output ollama?": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag error": {
+      "main": [
+        [
+          {
+            "node": "Next provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "The shared worker model call (PLAN §10.4). Input {agent, prompt, user_content, chain, exclude_provider?, temperature?}. Reads /prompts/<prompt>.md and .schema.json. Output {ok, provider, model, json}. Every provider failing → error."
+}

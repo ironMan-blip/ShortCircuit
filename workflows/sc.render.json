@@ -1,0 +1,3059 @@
+{
+  "id": "sc964aa149cea961",
+  "name": "sc.render",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Every 2 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "c17a7f2c-6db2-4fa8-1be3-1a08caaa2a79",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Claim",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET locked_at = now(), attempts = attempts + 1, updated_at = now()\nWHERE id = (SELECT id FROM jobs\n            WHERE status = ANY(ARRAY['script_approved', 'video_editing']) AND attempts < 3\n              AND (locked_at IS NULL OR locked_at < now() - interval '90 minutes')\n              AND NOT EXISTS (SELECT 1 FROM jobs r WHERE r.status IN ('script_approved', 'video_editing')\n                              AND r.locked_at > now() - interval '90 minutes')\n            ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)\nRETURNING *, 'SC-' || lpad(id::text, 4, '0') AS job;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "4fa19bee-adaf-c3dd-8cad-9cb3a4c797d7",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Fail",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET last_error = left($2, 2000), locked_at = NULL, render_started_at = NULL, updated_at = now() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id, String($json.error?.message ?? $json.error ?? $json.message ?? 'unknown error') + ' @ ' + ($json.error?.node?.name ?? $prevNode.name)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "df814548-9713-88b2-0d68-d1ce9df099ea",
+      "position": [
+        10660,
+        0
+      ]
+    },
+    {
+      "name": "Renderer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "http://renderer:8000/health",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "id": "cd290340-c0ed-ac13-5d06-296aed998430",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5bbec154-b39d-084d-17ab-356d9e50bf02",
+                    "leftValue": "={{ $('Claim').first().json.status === 'script_approved' && !!$('Claim').first().json.notes }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "owner notes"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4a8614ad-5c2a-a2cb-db47-26073471621d",
+                    "leftValue": "={{ $('Claim').first().json.status === 'script_approved' && !$('Claim').first().json.notes }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "first render"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "7bd78988-d630-c089-54d8-06cdfe0fa3ec",
+                    "leftValue": "={{ $('Claim').first().json.status === 'video_editing' }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "video edit"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "2646d5ab-b2b1-b635-7b04-f56cc21da9bc",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Editor notes",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "editor",
+            "prompt": "editor",
+            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
+            "chain": "={{ $env.LLM_CHAIN_EDITOR }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "5019e0c5-35b2-40f0-4e0b-4d9ca7bfc071",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Rules notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Editor notes').first().json.json;\nconst brief = $('Claim').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
+      },
+      "id": "0e8e3d57-73b2-f906-a179-f7123dfd82a7",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Checker notes",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "checker",
+            "prompt": "checker",
+            "user_content": "={{ '<script>' + JSON.stringify($('Editor notes').first().json.json) + '</script>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>\\n' + ($('Claim').first().json.brief.source_texts ?? []).map(x => '<source url=\"' + x.url + '\">' + x.text + '</source>').join('\\n') }}",
+            "chain": "={{ $env.LLM_CHAIN_CHECKER }}",
+            "exclude_provider": "={{ $('Editor notes').first().json.provider }}",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "cff96c54-d195-0020-50e1-3d99d21599b3",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Verdict notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules notes').first().json.rules;\nconst script = $('Editor notes').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'editor', writer_provider: $('Editor notes').first().json.provider, checker_provider: c.provider } }];"
+      },
+      "id": "9347bf86-4a82-a6ae-ccf4-1f774671904c",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "Notes clean?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "abf615d4-7d79-3df6-06da-84a8282f957a",
+              "leftValue": "={{ $json.pass }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "000f55a1-d0b2-d4f5-4a8b-29614d1f4aab",
+      "position": [
+        2340,
+        0
+      ]
+    },
+    {
+      "name": "Cutter",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "cutter",
+            "prompt": "cutter",
+            "user_content": "={{ '<plan>' + JSON.stringify($('Claim').first().json.plan) + '</plan>\\n<owner_notes>' + String($('Claim').first().json.notes ?? '') + '</owner_notes>\\n<primary_url>' + ($('Claim').first().json.brief?.primary_url ?? 'none') + '</primary_url>' }}",
+            "chain": "={{ $env.LLM_CHAIN_CUTTER }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "ba62eca7-f854-9c6b-9030-bcf9df422733",
+      "position": [
+        1300,
+        220
+      ]
+    },
+    {
+      "name": "Narration change?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ea9c82d9-5a82-3fe3-fa29-b8b5db8dfa41",
+              "leftValue": "={{ $json.json.narration_change }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "328f1445-b449-030b-417f-b6d3169a1047",
+      "position": [
+        1560,
+        220
+      ]
+    },
+    {
+      "name": "Editor video",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "editor",
+            "prompt": "editor",
+            "user_content": "={{ '<script>' + JSON.stringify($('Claim').first().json.script) + '</script>\\n<owner_notes>' + String($('Cutter').first().json.json.narration_change ?? '') + '</owner_notes>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>' }}",
+            "chain": "={{ $env.LLM_CHAIN_EDITOR }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "73a04af7-7591-9a2e-a605-0c26db3f1bab",
+      "position": [
+        1820,
+        220
+      ]
+    },
+    {
+      "name": "Rules video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Editor video').first().json.json;\nconst brief = $('Claim').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
+      },
+      "id": "ea3084c6-a2f4-54b9-fa35-d8901f2768cc",
+      "position": [
+        2080,
+        220
+      ]
+    },
+    {
+      "name": "Checker video",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "checker",
+            "prompt": "checker",
+            "user_content": "={{ '<script>' + JSON.stringify($('Editor video').first().json.json) + '</script>\\n<brief>' + JSON.stringify({ ...$('Claim').first().json.brief, source_texts: undefined }) + '</brief>\\n' + ($('Claim').first().json.brief.source_texts ?? []).map(x => '<source url=\"' + x.url + '\">' + x.text + '</source>').join('\\n') }}",
+            "chain": "={{ $env.LLM_CHAIN_CHECKER }}",
+            "exclude_provider": "={{ $('Editor video').first().json.provider }}",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "139fbd21-d246-1752-6037-843a4266ac47",
+      "position": [
+        2340,
+        220
+      ]
+    },
+    {
+      "name": "Verdict video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules video').first().json.rules;\nconst script = $('Editor video').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'editor', writer_provider: $('Editor video').first().json.provider, checker_provider: c.provider } }];"
+      },
+      "id": "12f4f692-57b2-3833-b03c-8403b8fafca8",
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "name": "Narration clean?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f917bd5b-eb17-6a5e-88b2-f83e7bb47e68",
+              "leftValue": "={{ $json.pass }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "ff5ac989-1af9-61b2-a168-57aa6ab45c3e",
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "name": "Finish flagged",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = 'needs_human', script = $2::jsonb, check_result = $3::jsonb, providers = providers || $4::jsonb,\n  notes = NULL, edit_then = NULL, review_sent_at = NULL, review_url = NULL, attempts = 0, locked_at = NULL, last_error = NULL, updated_at = now()\nWHERE id = $1 AND status = $5 RETURNING id, $6::text AS reason;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id, JSON.stringify($json.script), JSON.stringify($json.check), JSON.stringify({ editor: $json.writer_provider, checker: $json.checker_provider }), $('Claim').first().json.status, 'the Checker flagged the edit: ' + $json.flags.join('; ').slice(0, 280)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "0b858886-3497-4c87-61d3-044ff1a1a494",
+      "position": [
+        3120,
+        0
+      ]
+    },
+    {
+      "name": "Review flagged",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc4d059aed76eeee",
+          "mode": "list",
+          "cachedResultName": "sc.review"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.id }}",
+            "kind": "={{ 'needs_human' }}",
+            "reason": "={{ $json.reason }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "kind",
+              "displayName": "kind",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "6635e65a-d787-d12c-e069-97ff0e19bc9b",
+      "position": [
+        3640,
+        0
+      ]
+    },
+    {
+      "name": "Director input",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "7f4e87c0-cf6a-8923-a2f9-89a972c970c3",
+      "position": [
+        3380,
+        0
+      ]
+    },
+    {
+      "name": "Script edited",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4431d698-f93c-34c4-5d1b-e23d3ba2ebf1",
+              "name": "script",
+              "value": "={{ $json.script }}",
+              "type": "object"
+            },
+            {
+              "id": "90bcf490-1e33-5e26-3b90-066c86f59061",
+              "name": "providers",
+              "value": "={{ { editor: $json.writer_provider, checker: $json.checker_provider } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6cd0c5cc-0d5f-e8ad-29ef-1ca70c0a072d",
+      "position": [
+        2600,
+        220
+      ]
+    },
+    {
+      "name": "Script as approved",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "db9bc8cf-bfaf-c2d3-173e-95187db0f6b6",
+              "name": "script",
+              "value": "={{ $('Claim').first().json.script }}",
+              "type": "object"
+            },
+            {
+              "id": "2a1aa392-7c0c-aff0-609e-9955117bddf3",
+              "name": "providers",
+              "value": "={{ {} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ba399707-38a7-fb54-8f32-92439dd85848",
+      "position": [
+        1300,
+        440
+      ]
+    },
+    {
+      "name": "Script narration edited",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "65596aa7-231b-3707-e107-d665da98e25d",
+              "name": "script",
+              "value": "={{ $json.script }}",
+              "type": "object"
+            },
+            {
+              "id": "c9f5661a-66ff-0517-be13-2819350425e6",
+              "name": "providers",
+              "value": "={{ { editor: $json.writer_provider, checker: $json.checker_provider } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8c275b7d-3f16-a709-e486-e6567aaa3477",
+      "position": [
+        3120,
+        220
+      ]
+    },
+    {
+      "name": "Director",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "director",
+            "prompt": "director",
+            "user_content": "={{ '<script>' + JSON.stringify($json.script) + '</script>\\n<primary_url>' + ($('Claim').first().json.brief?.primary_url ?? 'none') + '</primary_url>\\n<music_moods>' + JSON.stringify($('Renderer').first().json.moods) + '</music_moods>' }}",
+            "chain": "={{ $env.LLM_CHAIN_DIRECTOR }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.5 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "46d3ac05-2318-280e-e414-6e8d30cb19e8",
+      "position": [
+        3640,
+        220
+      ]
+    },
+    {
+      "name": "Plan check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node rewrites a model's plan against the checked script.\nconst plan = $input.first().json.json ?? {};\nconst script = $('Director input').first().json.script;\nconst primary = $('Claim').first().json.brief?.primary_url ?? null;\nconst moods = $('Renderer').first().json.moods ?? [];\nconst warnings = [];\nconst byId = new Map((plan.scenes ?? []).map((s) => [s.id, s]));\nconst scenes = (script.scenes ?? []).map((s, i) => {\n  const p = byId.get(s.id) ?? plan.scenes?.[i] ?? {};\n  let v = p.visual ?? { type: 'card', text: '' };\n  if (v.type === 'screenshot' && (!primary || v.url !== primary)) { warnings.push('scene ' + s.id + ': screenshot of ' + v.url + ' replaced by a card'); v = { type: 'card', text: p.on_screen_text || s.narration.split(/\\s+/).slice(0, 6).join(' ') }; }\n  if (!['stock', 'card', 'screenshot'].includes(v.type)) v = { type: 'card', text: p.on_screen_text ?? '' };\n  return { id: s.id, narration: s.narration, visual: { type: v.type, query: String(v.query ?? '').slice(0, 200), text: String(v.text ?? '').slice(0, 300), url: v.type === 'screenshot' ? primary : '' }, on_screen_text: String(p.on_screen_text ?? '').slice(0, 120) };\n});\nlet mood = plan.music_mood;\nif (!moods.includes(mood)) { if (!moods.length) throw new Error('the renderer lists no music moods: add folders to assets/music/'); warnings.push('music_mood ' + mood + ' is not a folder; using ' + moods[0]); mood = moods[0]; }\nconst speed = Math.min(1.3, Math.max(0.8, Number(plan.speed) || 1.05));\nreturn [{ json: { plan: { voice: String(plan.voice ?? 'af_heart'), speed, music_mood: mood, scenes }, script, plan_warnings: warnings } }];"
+      },
+      "id": "b81dd896-6ff3-d837-ace1-069db16cdd23",
+      "position": [
+        3900,
+        0
+      ]
+    },
+    {
+      "name": "Plan check cut",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node rewrites a model's plan against the checked script.\nconst plan = $('Cutter').first().json.json ?? {};\nconst script = $('Claim').first().json.script;\nconst primary = $('Claim').first().json.brief?.primary_url ?? null;\nconst moods = $('Renderer').first().json.moods ?? [];\nconst warnings = [];\nconst byId = new Map((plan.scenes ?? []).map((s) => [s.id, s]));\nconst scenes = (script.scenes ?? []).map((s, i) => {\n  const p = byId.get(s.id) ?? plan.scenes?.[i] ?? {};\n  let v = p.visual ?? { type: 'card', text: '' };\n  if (v.type === 'screenshot' && (!primary || v.url !== primary)) { warnings.push('scene ' + s.id + ': screenshot of ' + v.url + ' replaced by a card'); v = { type: 'card', text: p.on_screen_text || s.narration.split(/\\s+/).slice(0, 6).join(' ') }; }\n  if (!['stock', 'card', 'screenshot'].includes(v.type)) v = { type: 'card', text: p.on_screen_text ?? '' };\n  return { id: s.id, narration: s.narration, visual: { type: v.type, query: String(v.query ?? '').slice(0, 200), text: String(v.text ?? '').slice(0, 300), url: v.type === 'screenshot' ? primary : '' }, on_screen_text: String(p.on_screen_text ?? '').slice(0, 120) };\n});\nlet mood = plan.music_mood;\nif (!moods.includes(mood)) { if (!moods.length) throw new Error('the renderer lists no music moods: add folders to assets/music/'); warnings.push('music_mood ' + mood + ' is not a folder; using ' + moods[0]); mood = moods[0]; }\nconst speed = Math.min(1.3, Math.max(0.8, Number(plan.speed) || 1.05));\nreturn [{ json: { plan: { voice: String(plan.voice ?? 'af_heart'), speed, music_mood: mood, scenes }, script, plan_warnings: warnings } }];"
+      },
+      "id": "953a4144-9c54-da27-1626-82b94fc6a78c",
+      "position": [
+        1820,
+        440
+      ]
+    },
+    {
+      "name": "Plan ready",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8d78bf78-f250-8406-daf6-330605c27571",
+              "name": "plan",
+              "value": "={{ $json.plan }}",
+              "type": "object"
+            },
+            {
+              "id": "3b389472-18d2-3e6d-f4b0-81c1138b79ba",
+              "name": "script",
+              "value": "={{ $json.script }}",
+              "type": "object"
+            },
+            {
+              "id": "08fc5798-0356-184c-269e-5e37d0d9bead",
+              "name": "plan_warnings",
+              "value": "={{ $json.plan_warnings }}",
+              "type": "array"
+            },
+            {
+              "id": "9f7ebac5-edb9-4606-277b-4b1267456545",
+              "name": "providers",
+              "value": "={{ { ...($('Director input').isExecuted ? $('Director input').first().json.providers : {}), ...($('Director').isExecuted ? { director: $('Director').first().json.provider } : {}), ...($('Cutter').isExecuted ? { cutter: $('Cutter').first().json.provider } : {}) } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4a5af621-b80d-2e10-56cc-a8fc0a708d02",
+      "position": [
+        4160,
+        0
+      ]
+    },
+    {
+      "name": "Render flag",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET render_started_at = now() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "052ff6a2-9a4f-d691-510f-91201c6402a9",
+      "position": [
+        4420,
+        0
+      ]
+    },
+    {
+      "name": "Unload Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $env.OLLAMA_MODEL, keep_alive: 0 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "id": "5a82048d-589d-69ab-4208-886d34bce4bb",
+      "position": [
+        4680,
+        0
+      ]
+    },
+    {
+      "name": "Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:8000/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ job_id: $('Claim').first().json.job, plan: $('Plan ready').first().json.plan }) }}",
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "8cc91f8d-6a20-084a-1212-cfcbdc2c1699",
+      "position": [
+        4940,
+        0
+      ]
+    },
+    {
+      "name": "Render done",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET render_started_at = NULL WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "82d070e2-963a-f374-c3bb-d4f8d23dca54",
+      "position": [
+        5200,
+        0
+      ]
+    },
+    {
+      "name": "Master rounds left?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4b1ab63a-412c-dfe7-f283-8abdcee44f58",
+              "leftValue": "={{ $('Claim').first().json.master_rounds }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d6dfd162-ce5e-b967-cffc-1033a13e445c",
+      "position": [
+        5460,
+        0
+      ]
+    },
+    {
+      "name": "Master review",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "scb470ce13b6711e",
+          "mode": "list",
+          "cachedResultName": "sc.ask_master"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "task": "review_video",
+            "job_id": "={{ $('Claim').first().json.id }}",
+            "context": "={{ JSON.stringify({ script: $('Plan ready').first().json.script, plan: $('Plan ready').first().json.plan, plan_warnings: $('Plan ready').first().json.plan_warnings, render: (({ transcript, contact_sheet, path, ...r }) => r)($('Render').first().json), transcript: $('Render').first().json.transcript }) }}",
+            "image_path": "={{ $('Render').first().json.contact_sheet }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "task",
+              "displayName": "task",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "context",
+              "displayName": "context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "image_path",
+              "displayName": "image_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "801c7361-8446-9268-9749-b4723cffacd0",
+      "position": [
+        5720,
+        0
+      ]
+    },
+    {
+      "name": "Redo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "400b1db5-7ced-e995-0daa-42a849e6a170",
+              "leftValue": "={{ $json.ok === true && $json.json?.verdict === \"redo\" }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "69aa196a-577f-41fd-6ec3-abd5c7bac011",
+      "position": [
+        5980,
+        0
+      ]
+    },
+    {
+      "name": "Cutter redo",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "cutter",
+            "prompt": "cutter",
+            "user_content": "={{ '<plan>' + JSON.stringify($('Plan ready').first().json.plan) + '</plan>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '') + '</feedback>\\n<primary_url>' + ($('Claim').first().json.brief?.primary_url ?? 'none') + '</primary_url>' }}",
+            "chain": "={{ $env.LLM_CHAIN_CUTTER }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "5c636321-8f02-5a77-652f-76de7b64aac1",
+      "position": [
+        6240,
+        0
+      ]
+    },
+    {
+      "name": "Plan check redo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node rewrites a model's plan against the checked script.\nconst plan = $input.first().json.json ?? {};\nconst script = $('Plan ready').first().json.script;\nconst primary = $('Claim').first().json.brief?.primary_url ?? null;\nconst moods = $('Renderer').first().json.moods ?? [];\nconst warnings = [];\nconst byId = new Map((plan.scenes ?? []).map((s) => [s.id, s]));\nconst scenes = (script.scenes ?? []).map((s, i) => {\n  const p = byId.get(s.id) ?? plan.scenes?.[i] ?? {};\n  let v = p.visual ?? { type: 'card', text: '' };\n  if (v.type === 'screenshot' && (!primary || v.url !== primary)) { warnings.push('scene ' + s.id + ': screenshot of ' + v.url + ' replaced by a card'); v = { type: 'card', text: p.on_screen_text || s.narration.split(/\\s+/).slice(0, 6).join(' ') }; }\n  if (!['stock', 'card', 'screenshot'].includes(v.type)) v = { type: 'card', text: p.on_screen_text ?? '' };\n  return { id: s.id, narration: s.narration, visual: { type: v.type, query: String(v.query ?? '').slice(0, 200), text: String(v.text ?? '').slice(0, 300), url: v.type === 'screenshot' ? primary : '' }, on_screen_text: String(p.on_screen_text ?? '').slice(0, 120) };\n});\nlet mood = plan.music_mood;\nif (!moods.includes(mood)) { if (!moods.length) throw new Error('the renderer lists no music moods: add folders to assets/music/'); warnings.push('music_mood ' + mood + ' is not a folder; using ' + moods[0]); mood = moods[0]; }\nconst speed = Math.min(1.3, Math.max(0.8, Number(plan.speed) || 1.05));\nreturn [{ json: { plan: { voice: String(plan.voice ?? 'af_heart'), speed, music_mood: mood, scenes }, script, plan_warnings: warnings } }];"
+      },
+      "id": "d2aae5b4-4514-5b01-2332-f5c8e5b03a8d",
+      "position": [
+        6500,
+        0
+      ]
+    },
+    {
+      "name": "Render flag 2",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET render_started_at = now() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "e25a1823-be57-c1a9-7ade-d99a6300b7ac",
+      "position": [
+        6760,
+        0
+      ]
+    },
+    {
+      "name": "Unload Ollama 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $env.OLLAMA_MODEL, keep_alive: 0 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "id": "364b2caf-12ef-37e8-0988-0bda4f02cd4c",
+      "position": [
+        7020,
+        0
+      ]
+    },
+    {
+      "name": "Render 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:8000/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ job_id: $('Claim').first().json.job, plan: $('Plan check redo').first().json.plan }) }}",
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "0677c918-0b55-a2a0-ccb6-5f8882b68685",
+      "position": [
+        7280,
+        0
+      ]
+    },
+    {
+      "name": "Render done 2",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET render_started_at = NULL WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "3b1578cd-efa3-5c8f-cd55-39f00e6bc9a3",
+      "position": [
+        7540,
+        0
+      ]
+    },
+    {
+      "name": "Final render",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "29d005a5-3897-f184-3525-97c87a0fde10",
+              "name": "render",
+              "value": "={{ $('Render 2').isExecuted ? $('Render 2').first().json : $('Render').first().json }}",
+              "type": "object"
+            },
+            {
+              "id": "ebab4311-bf05-8450-522f-7743612ac92f",
+              "name": "plan",
+              "value": "={{ $('Render 2').isExecuted ? $('Plan check redo').first().json.plan : $('Plan ready').first().json.plan }}",
+              "type": "object"
+            },
+            {
+              "id": "ae25d99b-d88d-072e-28be-1b683ac999a6",
+              "name": "master_inc",
+              "value": "={{ $('Render 2').isExecuted ? 1 : 0 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0e2f044e-0c18-02c5-2f56-81465b00c742",
+      "position": [
+        7800,
+        0
+      ]
+    },
+    {
+      "name": "Drive folder",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT value AS folder_id FROM config_seen WHERE key = 'drive_ready';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "5efc9b95-3fb9-10b4-6620-161507b84ff3",
+      "position": [
+        8060,
+        0
+      ]
+    },
+    {
+      "name": "Folder known?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "57dc9a5a-23ba-07b2-d2e0-c441141e2b47",
+              "leftValue": "={{ $json.folder_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "b8ea0cb8-6450-c4c6-89ea-58da8c1e5406",
+      "position": [
+        8320,
+        0
+      ]
+    },
+    {
+      "name": "No folder",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "parameters": {
+        "errorMessage": "={{ \"Drive folder ShortCircuit/ready is not known yet: run sc.config once\" }}"
+      },
+      "id": "044e217f-8e0e-8edd-d61d-936aa92a665a",
+      "position": [
+        8580,
+        0
+      ]
+    },
+    {
+      "name": "Video file",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Final render').first().json.render.path }}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "id": "e674728a-bef0-0735-e441-7a45beee45fa",
+      "position": [
+        8580,
+        220
+      ]
+    },
+    {
+      "name": "First upload?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4bd03584-939f-0984-ed43-a0d3b58c7073",
+              "leftValue": "={{ $('Claim').first().json.drive_file_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "dd0f2b07-ba2c-3bbf-b0ae-2b333e812add",
+      "position": [
+        8840,
+        0
+      ]
+    },
+    {
+      "name": "Upload",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "parameters": {
+        "name": "={{ $('Claim').first().json.job + '.mp4' }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Drive folder').first().json.folder_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "scCredDriveBot01",
+          "name": "Drive Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 20000,
+      "onError": "continueErrorOutput",
+      "id": "2643447b-95fb-1128-095c-23fce338d7af",
+      "position": [
+        9100,
+        0
+      ]
+    },
+    {
+      "name": "Update file",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "parameters": {
+        "operation": "update",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Claim').first().json.drive_file_id }}",
+          "mode": "id"
+        },
+        "changeFileContent": true,
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "scCredDriveBot01",
+          "name": "Drive Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 20000,
+      "onError": "continueErrorOutput",
+      "id": "ce4d76e8-a3fc-b351-05e7-f31b5f42d897",
+      "position": [
+        9100,
+        220
+      ]
+    },
+    {
+      "name": "Drive done",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1eea82e8-6b20-edb7-1675-034312af1d54",
+              "name": "drive_file_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "0ad13261-dfdf-010a-2a42-7e4f21204422",
+              "name": "drive_link",
+              "value": "={{ 'https://drive.google.com/file/d/' + $json.id + '/view' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "894322d4-67f4-04a8-9949-e4d226abd876",
+      "position": [
+        9360,
+        0
+      ]
+    },
+    {
+      "name": "Delete local",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ 'http://renderer:8000/jobs/' + $('Claim').first().json.job }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "id": "92d5a312-d97f-ff30-0abf-b82250235d68",
+      "position": [
+        9620,
+        0
+      ]
+    },
+    {
+      "name": "Assign slot",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH cand AS (\n  SELECT d::date AS day, ((d::date + coalesce(s.publish_time, $2::time)) AT TIME ZONE $3) AS at\n  FROM generate_series((now() AT TIME ZONE $3)::date, (now() AT TIME ZONE $3)::date + 90, interval '1 day') d\n  LEFT JOIN schedule s ON s.dow = extract(dow FROM d)::int),\npick AS (\n  SELECT * FROM cand WHERE at >= now() + interval '48 hours'\n    AND day NOT IN (SELECT slot_date FROM jobs WHERE slot_date IS NOT NULL) ORDER BY day LIMIT 1)\nUPDATE jobs SET slot_date = pick.day, slot_at = pick.at FROM pick\nWHERE jobs.id = $1 AND jobs.slot_date IS NULL AND jobs.status IN ('script_approved', 'video_editing')\nRETURNING jobs.slot_at;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id, $env.PUBLISH_TIME ?? '18:00', $env.TZ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "id": "0ca79423-c22a-c80c-e23f-adf78ab1d03a",
+      "position": [
+        9880,
+        0
+      ]
+    },
+    {
+      "name": "Outbox",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node HTML-escapes text or builds the Updated video mail.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst j = $('Claim').first().json; const d = $('Drive done').first().json;\nconst slot = $input.first().json.slot_at ?? j.slot_at;\nconst approve = j.status === 'video_editing' && j.edit_then === 'approve';\nconst s = $('Plan ready').first().json.script;\nconst outbox = approve ? { subject: '[' + j.job + '] Updated video — publishes ' + fmt(slot), html: page(j.job + ' · updated video',\n  '<p>Your changes are in. ' + esc(s.title) + ' publishes ' + esc(fmt(slot)) + '; nothing else is needed.</p>' + button(d.drive_link, 'Watch on Drive') + cancelLink(j.id)) } : null;\nreturn [{ json: { status: approve ? 'approved' : 'video_review', outbox } }];"
+      },
+      "id": "38ff4ed1-5b95-ab92-3747-3a4b58d10903",
+      "position": [
+        10140,
+        0
+      ]
+    },
+    {
+      "name": "Finish",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = $2, plan = $3::jsonb, script = $4::jsonb, drive_file_id = $5, drive_link = $6,\n  providers = providers || $7::jsonb, master_rounds = master_rounds + $8, outbox = $9::jsonb,\n  notes = NULL, edit_then = NULL, review_sent_at = NULL, review_url = NULL, attempts = 0, locked_at = NULL, last_error = NULL, render_started_at = NULL, updated_at = now()\nWHERE id = $1 AND status = $10 RETURNING id, status;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id, $json.status, JSON.stringify($('Final render').first().json.plan), JSON.stringify($('Plan ready').first().json.script), $('Drive done').first().json.drive_file_id, $('Drive done').first().json.drive_link, JSON.stringify($('Plan ready').first().json.providers), $('Final render').first().json.master_inc, $json.outbox ? JSON.stringify($json.outbox) : null, $('Claim').first().json.status] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "65d35d25-cb26-0039-0676-6cd18b1f6b26",
+      "position": [
+        10400,
+        0
+      ]
+    },
+    {
+      "name": "Video review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a903fc70-efac-2903-ba1f-d177253b5aa5",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "video_review",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "30281959-8a93-8f6b-e237-0f14bef43c89",
+      "position": [
+        10920,
+        0
+      ]
+    },
+    {
+      "name": "Start review",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc4d059aed76eeee",
+          "mode": "list",
+          "cachedResultName": "sc.review"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.id }}",
+            "kind": "={{ 'video' }}",
+            "reason": "={{ '' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "kind",
+              "displayName": "kind",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "1aa35aeb-6129-d7a1-bd01-ca3ca1a3c008",
+      "position": [
+        11180,
+        0
+      ]
+    },
+    {
+      "name": "Send updated mail",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sca84aad68e9b1c7",
+          "mode": "list",
+          "cachedResultName": "sc.mail"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "c51b6150-06c6-8846-ff43-dc0cdb2ab95a",
+      "position": [
+        11180,
+        220
+      ]
+    },
+    {
+      "name": "Claim found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3d3b845b-d0ec-16c3-1036-86549700ab1a",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "6e89ff2b-0aa7-c6c9-e5a8-9897574152b5",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Finish flagged found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "23067495-d4cd-5db9-2a63-dce403c39647",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d1c93f6c-1227-fc14-de8b-c0fc58534feb",
+      "position": [
+        3380,
+        220
+      ]
+    },
+    {
+      "name": "Finish found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6b0e52ee-ea5f-afbb-4b3f-1736c4ea28ee",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "848661b0-5378-e7d4-1534-24378e0b8760",
+      "position": [
+        10660,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Every 2 min": {
+      "main": [
+        [
+          {
+            "node": "Claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim": {
+      "main": [
+        [
+          {
+            "node": "Claim found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Renderer": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editor notes": {
+      "main": [
+        [
+          {
+            "node": "Rules notes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rules notes": {
+      "main": [
+        [
+          {
+            "node": "Checker notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker notes": {
+      "main": [
+        [
+          {
+            "node": "Verdict notes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Editor notes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Script as approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cutter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verdict notes": {
+      "main": [
+        [
+          {
+            "node": "Notes clean?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cutter": {
+      "main": [
+        [
+          {
+            "node": "Narration change?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editor video": {
+      "main": [
+        [
+          {
+            "node": "Rules video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rules video": {
+      "main": [
+        [
+          {
+            "node": "Checker video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker video": {
+      "main": [
+        [
+          {
+            "node": "Verdict video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Narration change?": {
+      "main": [
+        [
+          {
+            "node": "Editor video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Plan check cut",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verdict video": {
+      "main": [
+        [
+          {
+            "node": "Narration clean?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notes clean?": {
+      "main": [
+        [
+          {
+            "node": "Script edited",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish flagged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Narration clean?": {
+      "main": [
+        [
+          {
+            "node": "Script narration edited",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish flagged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish flagged": {
+      "main": [
+        [
+          {
+            "node": "Finish flagged found?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script edited": {
+      "main": [
+        [
+          {
+            "node": "Director input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script as approved": {
+      "main": [
+        [
+          {
+            "node": "Director input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script narration edited": {
+      "main": [
+        [
+          {
+            "node": "Director input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Director input": {
+      "main": [
+        [
+          {
+            "node": "Director",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Director": {
+      "main": [
+        [
+          {
+            "node": "Plan check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan check": {
+      "main": [
+        [
+          {
+            "node": "Plan ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan check cut": {
+      "main": [
+        [
+          {
+            "node": "Plan ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan ready": {
+      "main": [
+        [
+          {
+            "node": "Render flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render flag": {
+      "main": [
+        [
+          {
+            "node": "Unload Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unload Ollama": {
+      "main": [
+        [
+          {
+            "node": "Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render": {
+      "main": [
+        [
+          {
+            "node": "Render done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render done": {
+      "main": [
+        [
+          {
+            "node": "Master rounds left?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Master rounds left?": {
+      "main": [
+        [
+          {
+            "node": "Master review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Final render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Master review": {
+      "main": [
+        [
+          {
+            "node": "Redo?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redo?": {
+      "main": [
+        [
+          {
+            "node": "Cutter redo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Final render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cutter redo": {
+      "main": [
+        [
+          {
+            "node": "Plan check redo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan check redo": {
+      "main": [
+        [
+          {
+            "node": "Render flag 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render flag 2": {
+      "main": [
+        [
+          {
+            "node": "Unload Ollama 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unload Ollama 2": {
+      "main": [
+        [
+          {
+            "node": "Render 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render 2": {
+      "main": [
+        [
+          {
+            "node": "Render done 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render done 2": {
+      "main": [
+        [
+          {
+            "node": "Final render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final render": {
+      "main": [
+        [
+          {
+            "node": "Drive folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drive folder": {
+      "main": [
+        [
+          {
+            "node": "Folder known?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Folder known?": {
+      "main": [
+        [
+          {
+            "node": "Video file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video file": {
+      "main": [
+        [
+          {
+            "node": "First upload?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First upload?": {
+      "main": [
+        [
+          {
+            "node": "Upload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload": {
+      "main": [
+        [
+          {
+            "node": "Drive done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drive done": {
+      "main": [
+        [
+          {
+            "node": "Delete local",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update file": {
+      "main": [
+        [
+          {
+            "node": "Drive done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete local": {
+      "main": [
+        [
+          {
+            "node": "Assign slot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign slot": {
+      "main": [
+        [
+          {
+            "node": "Outbox",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbox": {
+      "main": [
+        [
+          {
+            "node": "Finish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish": {
+      "main": [
+        [
+          {
+            "node": "Finish found?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video review?": {
+      "main": [
+        [
+          {
+            "node": "Start review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send updated mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim found?": {
+      "main": [
+        [
+          {
+            "node": "Renderer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish flagged found?": {
+      "main": [
+        [
+          {
+            "node": "Review flagged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish found?": {
+      "main": [
+        [
+          {
+            "node": "Video review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Claims script_approved / video_editing (one render at a time): Editor+Checker on notes, Director or Cutter, render, Master video review (→ one redo), Drive upload/update, slot, → video_review / approved (PLAN §10.6)."
+}

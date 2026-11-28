@@ -15,8 +15,10 @@ Rules for the pick:
 - It must not repeat a topic in `<recent_topics>` (same product, launch or story).
 
 Choose `source_urls` only from the `url` values in `<candidates>`, copied exactly. Never
-write a url that is not in the list. Give 2–4 of them, best first. Prefer sources from RSS
-feeds (news sites) and GitHub Trending over HN or Reddit posts.
+write a url that is not in the list. Give 2–4 of them, best first. At least one of them
+must have a `source` that is a news site or `GitHub Trending` (not `Hacker News`, not
+`Reddit`): anyone can post a link there, so a pick backed only by HN or Reddit links is
+thrown away. Prefer news sites and GitHub Trending for the others too.
 
 `primary_url` is the official page or repository of the thing itself, only if it is one of
 the candidate urls; otherwise `null`.

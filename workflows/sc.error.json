@@ -1,0 +1,136 @@
+{
+  "id": "scec7dd24bdb2847",
+  "name": "sc.error",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "7d7b8f71-2e4e-79c0-e598-9e4d45dda49d",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Count failures",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node keeps a rolling count across executions: workflow static data does.\nconst e = $input.first().json;\nconst wf = e.workflow?.name ?? 'unknown';\n// sc.llm throws on purpose when a whole chain fails; its caller's fail branch handles that (attempts → triage).\nif (wf === 'sc.llm') return [];\nconst s = $getWorkflowStaticData('global');\nconst now = Date.now();\ns.fails = (s.fails ?? {});\ns.fails[wf] = (s.fails[wf] ?? []).filter((t) => now - t < 3600e3).concat(now);\nconst msg = String(e.execution?.error?.message ?? e.trigger?.error?.message ?? 'unknown error').slice(0, 500);\nconst node = e.execution?.lastNodeExecuted ?? '';\nif (s.fails[wf].length < 3) return [];\ns.fails[wf] = [];\nreturn [{ json: { key: 'workflow_failing:' + wf, subject: wf + ' failed 3 times in an hour',\n  text: 'Workflow ' + wf + ' failed 3 times in the last hour. Last failure at node \"' + node + '\": ' + msg + (e.execution?.url ? '\\nExecution: ' + e.execution.url : '') } }];"
+      },
+      "id": "176568a9-ba3a-fc8a-5106-759fdd80347a",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Alert",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ $json.key }}",
+            "subject": "={{ $json.subject }}",
+            "text": "={{ $json.text }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "5c5a84a3-b27a-7c9a-c12e-6d453b4779c2",
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Count failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count failures": {
+      "main": [
+        [
+          {
+            "node": "Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Error Trigger for every sc.* workflow. Alerts when one workflow fails 3 times in an hour. Never touches jobs (PLAN §10.3)."
+}

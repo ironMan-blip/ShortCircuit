@@ -1,0 +1,79 @@
+{
+  "id": "sc93c433c491bebb",
+  "name": "sc.tool.crew_stats",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "days",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "ba59c8e0-5244-ab9e-4353-366566a42ca3",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Read",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH d AS (SELECT LEAST(30, GREATEST(1, coalesce($1, 7))) AS days),\nj AS (SELECT * FROM jobs, d WHERE created_at > now() - make_interval(days => d.days) OR updated_at > now() - make_interval(days => d.days))\nSELECT jsonb_build_object(\n  'days', (SELECT days FROM d),\n  'jobs_per_status', (SELECT coalesce(jsonb_object_agg(status, c), '{}') FROM (SELECT status, count(*) c FROM j GROUP BY status) s),\n  'provider_use', (SELECT coalesce(jsonb_object_agg(agent, p), '{}') FROM (SELECT agent, jsonb_object_agg(provider, c) p FROM (SELECT k AS agent, v AS provider, count(*) c FROM j, jsonb_each_text(j.providers) e(k, v) GROUP BY 1, 2) x GROUP BY agent) y),\n  'checker_flag_rate', (SELECT round(avg(CASE WHEN (check_result->>'pass')::boolean THEN 0 ELSE 1 END)::numeric, 2) FROM j WHERE check_result IS NOT NULL),\n  'needs_human', (SELECT count(*) FROM j WHERE status = 'needs_human'),\n  'master', (SELECT coalesce(jsonb_object_agg(task, c), '{}') FROM (SELECT task || CASE WHEN result ? 'skipped' THEN ':skipped' WHEN result->>'verdict' = 'redo' THEN ':redo' ELSE '' END AS task, count(*) c FROM master_log, d WHERE created_at > now() - make_interval(days => d.days) GROUP BY 1) m),\n  'owner_decisions', (SELECT coalesce(jsonb_object_agg(decision, c), '{}') FROM (SELECT kind || ':' || decision AS decision, count(*) c FROM reviews, d WHERE answered_at > now() - make_interval(days => d.days) GROUP BY 1) r),\n  'errors', (SELECT coalesce(jsonb_agg(e), '[]') FROM (SELECT 'SC-' || lpad(id::text, 4, '0') AS job, status, left(last_error, 300) AS error FROM j WHERE last_error IS NOT NULL ORDER BY updated_at DESC LIMIT 20) e),\n  'views_48h', (SELECT coalesce(jsonb_agg(jsonb_build_object('job', 'SC-' || lpad(m.job_id::text, 4, '0'), 'views', m.views)), '[]') FROM metrics m, d WHERE m.age_h = 48 AND m.taken_at > now() - make_interval(days => d.days))\n) AS result;",
+        "options": {
+          "queryReplacement": "={{ [Number($json.days) || 7] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "1e0fd59f-cc0f-aea9-d7b2-4aae8b390454",
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Per-agent stats for the last N days (1-30)."
+}

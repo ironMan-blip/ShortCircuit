@@ -1,0 +1,831 @@
+{
+  "id": "sc4d059aed76eeee",
+  "name": "sc.review",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "job_id",
+              "type": "any"
+            },
+            {
+              "name": "kind",
+              "type": "any"
+            },
+            {
+              "name": "reason",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "a16ab595-4645-cd05-eb69-711186774e2e",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Kind",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node maps a review kind to its state and time limit.\nconst i = $input.first().json;\nconst state = { script: 'script_review', video: 'video_review', needs_human: 'needs_human' }[i.kind];\nif (!state || !Number.isInteger(Number(i.job_id))) throw new Error('sc.review: bad input ' + JSON.stringify(i));\nreturn [{ json: { job_id: Number(i.job_id), kind: i.kind, state, hours: i.kind === 'needs_human' ? 48 : 12, reason: String(i.reason ?? '') } }];"
+      },
+      "id": "41d72e85-77c4-2e00-9785-3150692c6b5f",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Take review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET review_sent_at = now(), review_url = $2, review_deadline = now() + make_interval(hours => $3), updated_at = now()\nWHERE id = $1 AND status = $4 AND review_sent_at IS NULL\nRETURNING *, 'SC-' || lpad(id::text, 4, '0') AS job;",
+        "options": {
+          "queryReplacement": "={{ [$json.job_id, $execution.resumeFormUrl, $json.hours, $json.state] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "139152ec-f06b-93c3-bc43-814b70be1989",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Build mail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node HTML-escapes text or builds the review mail.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst j = $input.first().json; const k = $('Kind').first().json;\nconst s = j.script ?? {}; const b = j.brief ?? {}; const c = j.check_result ?? {};\nconst when = (t) => fmt(t);\nlet reason = k.reason;\nif (k.kind === 'needs_human' && !reason) reason = j.round >= 3 ? '3 rounds used' : 'the Checker flagged: ' + [...(c.unsupported_claims ?? []), ...(c.policy_issues ?? []), ...(c.rules ?? [])].join('; ').slice(0, 300);\nconst subject = k.kind === 'script' ? '[' + j.job + '] Script — auto-approves ' + when(j.review_deadline)\n  : k.kind === 'video' ? '[' + j.job + '] Video — publishes ' + when(j.slot_at) + ' — auto-approves ' + when(j.review_deadline)\n  : '[' + j.job + '] NEEDS YOU: ' + reason;\nconst li = (arr) => '<ul>' + arr.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>';\nlet body = '<p><b>' + esc(s.title) + '</b></p><p><i>' + esc(s.hook) + '</i></p>';\nbody += '<ol>' + (s.scenes ?? []).map((x) => '<li>' + esc(x.narration) + '</li>').join('') + '</ol>';\nbody += '<p>' + esc(s.description) + '</p><p style=\"color:#666\">Tags: ' + esc((s.tags ?? []).join(', ')) + '</p>';\nif (s.editor_notes) body += '<p><b>Editor:</b> ' + esc(s.editor_notes) + '</p>';\nconst flags = [...(c.unsupported_claims ?? []), ...(c.policy_issues ?? []), ...(c.rules ?? [])];\nbody += '<p><b>Fact check:</b> ' + (c.pass ? 'clean' : 'flagged') + '</p>' + (flags.length ? li(flags) : '');\nbody += '<p><b>Sources</b></p><ul>' + (b.sources ?? []).map((x) => okUrl(x.url) ? '<li><a href=\"' + esc(okUrl(x.url)) + '\">' + esc(x.title || x.url) + '</a> (' + esc(x.publisher) + ')</li>' : '').join('') + '</ul>';\nif (k.kind === 'video') body = button(j.drive_link, 'Watch on Drive') + '<p>Publishes ' + esc(when(j.slot_at)) + '.</p>' + body + cancelLink(j.id);\nif (k.kind === 'needs_human') body = '<p><b>Why:</b> ' + esc(reason) + '</p><p>No answer by ' + esc(when(j.review_deadline)) + ' drops this job. Only Approve renders it.</p>' + body;\nelse body = '<p>Silence approves at ' + esc(when(j.review_deadline)) + '. Open the form only to change or stop it.</p>' + body;\nreturn [{ json: { subject: subject.replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]/g, ' ').slice(0, 200), html: page(j.job + ' · ' + (s.title ?? ''), body), deadline: j.review_deadline, job_id: j.id, job: j.job } }];"
+      },
+      "id": "de0049b4-5f0a-7f67-88a2-12f5015cbf93",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Ask owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "={{ $env.OWNER_EMAIL }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "responseType": "customForm",
+        "defineForm": "fields",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Decision",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Approve"
+                  },
+                  {
+                    "option": "Approve with these changes"
+                  },
+                  {
+                    "option": "Revise and show me again"
+                  },
+                  {
+                    "option": "Reject"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Notes",
+              "fieldType": "textarea",
+              "placeholder": "What to change (needed for the two change choices)"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false,
+          "messageButtonLabel": "Review",
+          "responseFormTitle": "={{ $json.job }} review",
+          "responseFormButtonLabel": "Send",
+          "limitWaitTime": {
+            "values": {
+              "limitType": "atSpecifiedTime",
+              "maxDateAndTime": "={{ $json.deadline }}"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "scCredGmailBot01",
+          "name": "Gmail Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 15000,
+      "onError": "continueErrorOutput",
+      "webhookId": "e9e87836-2b4d-a810-e172-858be66a309a",
+      "id": "2e256940-2290-48f4-e45e-54880d8ceac5",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Release review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET review_sent_at = NULL, review_url = NULL, updated_at = now() WHERE id = $1 AND review_url = $2;",
+        "options": {
+          "queryReplacement": "={{ [$('Kind').first().json.job_id, $execution.resumeFormUrl] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "12688d31-cb72-5f7f-497b-bf36aebc8cc6",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Mail failed",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "parameters": {
+        "errorMessage": "={{ 'sc.review could not send the form: ' + ($json.error?.message ?? $json.error ?? 'unknown') }}"
+      },
+      "id": "1cdeca36-6cd7-ef38-455a-f1b8c98b1f90",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node maps a form answer (or a time-out) to a decision code.\n// On a time-out Send and Wait passes its input through (no data); a send error must never read as silence.\nif ($input.first().json.error) throw new Error('sc.review: the form mail failed, nothing applied: ' + $input.first().json.error);\nconst d = $input.first().json.data;\nconst map = {\"Approve\":\"approve\",\"Approve with these changes\":\"approve_changes\",\"Revise and show me again\":\"revise\",\"Reject\":\"reject\"};\nconst decision = d && map[d.Decision] ? map[d.Decision] : 'timeout';\nreturn [{ json: { decision, notes: String(d?.Notes ?? '').trim().slice(0, 4000) } }];"
+      },
+      "id": "0a3bab0a-43b3-8d9d-cbd0-f3fb2181b59f",
+      "position": [
+        1560,
+        220
+      ]
+    },
+    {
+      "name": "Has notes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "699474f4-75e0-8f39-39da-055640d46264",
+              "leftValue": "={{ $json.notes }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "cf1837d5-7d85-92ab-4ca4-e3f7728b6eb6",
+      "position": [
+        1820,
+        220
+      ]
+    },
+    {
+      "name": "Remove personal data",
+      "type": "@n8n/n8n-nodes-langchain.guardrails",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "sanitize",
+        "text": "={{ $json.notes }}",
+        "guardrails": {
+          "pii": {
+            "value": {
+              "type": "all"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "id": "a0e9677a-5110-150a-995d-548f90b21a20",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "Clean notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Sanitize drops failed items: refuse to go on without the cleaned text.\nconst t = $input.first().json.guardrailsInput;\nif (typeof t !== 'string') throw new Error('Guardrails could not sanitize the owner notes');\nreturn [{ json: { decision: $('Decision').first().json.decision, notes: t } }];"
+      },
+      "id": "c855b584-49b4-b848-0b6a-4f2bed5222c2",
+      "position": [
+        2340,
+        0
+      ]
+    },
+    {
+      "name": "Empty change request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cff3859a-bc1f-9722-e14b-88f9365149f2",
+              "leftValue": "={{ ['approve_changes', 'revise'].includes($json.decision) && !$json.notes }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "f9c4d9e1-2cdb-5769-5c49-9a9ce2e847fc",
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "name": "Reopen",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET review_sent_at = NULL, review_url = NULL, updated_at = now() WHERE id = $1 AND review_url = $2 RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('Kind').first().json.job_id, $execution.resumeFormUrl] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "78484ada-de10-1a07-8231-f6038079392a",
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "name": "New form",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc4d059aed76eeee",
+          "mode": "list",
+          "cachedResultName": "sc.review"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $('Kind').first().json.job_id }}",
+            "kind": "={{ $('Kind').first().json.kind }}",
+            "reason": "={{ $('Kind').first().json.reason }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "kind",
+              "displayName": "kind",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "428159d3-ba6f-9a1d-eaff-4a47271f2002",
+      "position": [
+        3380,
+        0
+      ]
+    },
+    {
+      "name": "Apply",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH j AS (\n  SELECT id, status FROM jobs WHERE id = $1 AND review_url = $2 FOR UPDATE),\nd AS (\n  SELECT j.id, CASE\n    WHEN j.status = 'script_review' AND $4 IN ('approve', 'approve_changes', 'timeout') THEN 'script_approved'\n    WHEN j.status = 'needs_human' AND $4 IN ('approve', 'approve_changes') THEN 'script_approved'\n    WHEN j.status IN ('script_review', 'needs_human') AND $4 = 'revise' THEN 'revising'\n    WHEN j.status = 'video_review' AND $4 IN ('approve', 'timeout') THEN 'approved'\n    WHEN j.status = 'video_review' AND $4 IN ('approve_changes', 'revise') THEN 'video_editing'\n    WHEN j.status IN ('script_review', 'needs_human', 'video_review') AND $4 = 'reject' THEN 'rejected'\n    WHEN j.status = 'needs_human' AND $4 = 'timeout' THEN 'rejected'\n  END AS next FROM j),\nins AS (\n  INSERT INTO reviews (execution_id, job_id, kind, decision, notes)\n  VALUES ($3, $1, $5, $4, NULLIF($6, '')) ON CONFLICT DO NOTHING RETURNING 1),\nupd AS (\n  UPDATE jobs SET status = d.next,\n    notes = CASE WHEN $4 IN ('approve_changes', 'revise') THEN NULLIF($6, '') ELSE jobs.notes END,\n    edit_then = CASE WHEN d.next = 'video_editing' THEN CASE WHEN $4 = 'approve_changes' THEN 'approve' ELSE 'review' END ELSE jobs.edit_then END,\n    slot_at = CASE WHEN d.next = 'rejected' THEN NULL ELSE jobs.slot_at END,\n    slot_date = CASE WHEN d.next = 'rejected' THEN NULL ELSE jobs.slot_date END,\n    review_url = NULL, review_deadline = NULL, updated_at = now()\n  FROM d WHERE jobs.id = d.id AND d.next IS NOT NULL AND EXISTS (SELECT 1 FROM ins)\n  RETURNING jobs.id, jobs.status)\nSELECT (SELECT count(*) FROM upd)::int AS applied,\n  coalesce((SELECT status FROM upd), (SELECT status FROM jobs WHERE id = $1)) AS status_now,\n  (SELECT review_url IS NOT NULL FROM jobs WHERE id = $1) AS newer_form,\n  'SC-' || lpad($1::text, 4, '0') AS job;",
+        "options": {
+          "queryReplacement": "={{ [$('Kind').first().json.job_id, $execution.resumeFormUrl, $execution.id, $json.decision, $('Kind').first().json.kind, $json.notes] }}",
+          "queryBatching": "transaction"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "8ad4abf4-43fb-cb9a-743f-3c57d0aca978",
+      "position": [
+        2860,
+        220
+      ]
+    },
+    {
+      "name": "Not applied?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "205f39bc-f13b-51f5-6947-aaa48b05ae53",
+              "leftValue": "={{ $json.applied === 0 && $(\"Empty change request?\").first().json.decision !== \"timeout\" }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "789bf4cf-b3b1-6c4b-d1c4-0450fca64a94",
+      "position": [
+        3120,
+        0
+      ]
+    },
+    {
+      "name": "Not applied mail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node HTML-escapes text.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst r = $input.first().json;\nconst why = r.newer_form ? 'This form was replaced by a newer one; use the newest mail.' : r.job + ' is now ' + r.status_now + '; your answer was not applied.';\nreturn [{ json: { subject: '[' + r.job + '] Not applied', html: page(r.job + ' · not applied', '<p>' + esc(why) + '</p>') } }];"
+      },
+      "id": "99447557-0f89-88c1-8f64-e7b2d81beb67",
+      "position": [
+        3380,
+        220
+      ]
+    },
+    {
+      "name": "Send note",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sca84aad68e9b1c7",
+          "mode": "list",
+          "cachedResultName": "sc.mail"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "subject": "={{ $json.subject }}",
+            "html": "={{ $json.html }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "html",
+              "displayName": "html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "1219ffb2-1b64-28b3-72ac-cf2d07b0832d",
+      "position": [
+        3640,
+        0
+      ]
+    },
+    {
+      "name": "Take review found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bb646596-ab4a-fc07-88e7-ed63ff6d645d",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "df26b703-a65f-b0b9-8e89-86d24912d136",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Reopen found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3c643ef0-5473-6f69-c58d-14f51360f770",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d0040ec6-6c7d-f5c5-5627-ec1ab1097065",
+      "position": [
+        3120,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Kind",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kind": {
+      "main": [
+        [
+          {
+            "node": "Take review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take review": {
+      "main": [
+        [
+          {
+            "node": "Take review found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build mail": {
+      "main": [
+        [
+          {
+            "node": "Ask owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask owner": {
+      "main": [
+        [
+          {
+            "node": "Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Release review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision": {
+      "main": [
+        [
+          {
+            "node": "Has notes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Release review": {
+      "main": [
+        [
+          {
+            "node": "Mail failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has notes?": {
+      "main": [
+        [
+          {
+            "node": "Remove personal data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Empty change request?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove personal data": {
+      "main": [
+        [
+          {
+            "node": "Clean notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean notes": {
+      "main": [
+        [
+          {
+            "node": "Empty change request?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empty change request?": {
+      "main": [
+        [
+          {
+            "node": "Reopen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reopen": {
+      "main": [
+        [
+          {
+            "node": "Reopen found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply": {
+      "main": [
+        [
+          {
+            "node": "Not applied?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not applied?": {
+      "main": [
+        [
+          {
+            "node": "Not applied mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not applied mail": {
+      "main": [
+        [
+          {
+            "node": "Send note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take review found?": {
+      "main": [
+        [
+          {
+            "node": "Build mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reopen found?": {
+      "main": [
+        [
+          {
+            "node": "New form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Input {job_id, kind: script|video|needs_human, reason?}. Sends the review form to OWNER_EMAIL and waits (12 h, 48 h for needs_human); then one guarded status change. Called with wait off (PLAN §10.6)."
+}

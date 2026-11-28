@@ -1,0 +1,2766 @@
+{
+  "id": "sc97a78e1568640c",
+  "name": "sc.create",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Every 2 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "652d1cfd-e12a-3cde-4753-c8f1987bc50e",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Claim",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET locked_at = now(), attempts = attempts + 1, updated_at = now()\nWHERE id = (SELECT id FROM jobs\n            WHERE status = ANY(ARRAY['new']) AND attempts < 3\n              AND (locked_at IS NULL OR locked_at < now() - interval '90 minutes')\n            ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)\nRETURNING *, 'SC-' || lpad(id::text, 4, '0') AS job;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "81f8d5a3-bc3e-b8a9-196c-c9aaa1519c7d",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Fail",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET last_error = left($2, 2000), locked_at = NULL, render_started_at = NULL, updated_at = now() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id, String($json.error?.message ?? $json.error ?? $json.message ?? 'unknown error') + ' @ ' + ($json.error?.node?.name ?? $prevNode.name)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "30b88295-0071-6930-e4bb-0b4b0ae9aa15",
+      "position": [
+        8580,
+        0
+      ]
+    },
+    {
+      "name": "HN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://hn.algolia.com/api/v1/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tags",
+              "value": "front_page"
+            },
+            {
+              "name": "hitsPerPage",
+              "value": "40"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "id": "c8e0318a-c1f9-d786-8f78-70b2f356b106",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "GitHub Trending",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://github.com/trending",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "id": "2a7aa62d-74c2-9762-d6e7-b8b7ac1e5b8b",
+      "position": [
+        780,
+        220
+      ]
+    },
+    {
+      "name": "Trending repos",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "dataPropertyName": "data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "repos",
+              "cssSelector": "article.Box-row h2 a",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {
+          "cleanUpText": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "dd138291-c7ed-135e-a442-06aac262c452",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "The Verge",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "parameters": {
+        "url": "https://www.theverge.com/rss/index.xml",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "id": "e1a430e2-9608-54da-4e2b-82f1a07b90d5",
+      "position": [
+        780,
+        440
+      ]
+    },
+    {
+      "name": "Ars Technica",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "parameters": {
+        "url": "https://feeds.arstechnica.com/arstechnica/index",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "id": "ac2bb57e-8f73-4fa7-33cc-2a7982b075af",
+      "position": [
+        780,
+        660
+      ]
+    },
+    {
+      "name": "TechCrunch",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "parameters": {
+        "url": "https://techcrunch.com/feed/",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "id": "b9b2f53a-70c5-94f0-ae40-ba07b9dc4a9b",
+      "position": [
+        780,
+        880
+      ]
+    },
+    {
+      "name": "9to5Mac",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "parameters": {
+        "url": "https://9to5mac.com/feed/",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "id": "4697df5d-79a3-6c5f-61e3-e54cf94b9947",
+      "position": [
+        780,
+        1100
+      ]
+    },
+    {
+      "name": "9to5Google",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "parameters": {
+        "url": "https://9to5google.com/feed/",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "id": "5f81af81-5062-8814-6e28-01d2e7c3747d",
+      "position": [
+        780,
+        1320
+      ]
+    },
+    {
+      "name": "r/technology",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/technology/top.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "t",
+              "value": "day"
+            },
+            {
+              "name": "limit",
+              "value": "25"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "ShortCircuit/1.0 (tech news reader)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "id": "355e8b50-8adc-8cb5-8793-8f7bd622bb42",
+      "position": [
+        780,
+        1540
+      ]
+    },
+    {
+      "name": "r/gadgets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/gadgets/top.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "t",
+              "value": "day"
+            },
+            {
+              "name": "limit",
+              "value": "25"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "ShortCircuit/1.0 (tech news reader)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "id": "ed0f8565-27b6-4db0-9c06-aa67a6d4b1a5",
+      "position": [
+        780,
+        1760
+      ]
+    },
+    {
+      "name": "All sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "parameters": {
+        "numberInputs": 9
+      },
+      "id": "74e43d77-336f-ff16-b3f0-8b2192d8cee8",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node merges nine differently shaped feeds into one candidate list.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst all = (name) => { try { return $(name).all().map((i) => i.json).filter((j) => j && !j.error); } catch { return []; } };\nconst now = Date.now(); const out = new Map();\nconst add = (title, url, source, kind, score, date) => {\n  const u = okUrl(url); if (!title || !u) return;\n  const t = date ? new Date(date).getTime() : now;\n  if (!(t > now - 72 * 3600e3)) return;\n  const c = out.get(u) ?? { title: String(title).slice(0, 200), url: u, source, score: 0, date: new Date(t).toISOString(), kinds: [] };\n  c.score = Math.max(c.score, Number(score) || 0); if (!c.kinds.includes(kind)) c.kinds.push(kind);\n  out.set(u, c);\n};\nfor (const h of (all('HN')[0]?.hits ?? []).slice(0, 25)) add(h.title, h.url, 'Hacker News', 'hn', h.points, h.created_at);\n(all('Trending repos')[0]?.repos ?? []).slice(0, 10).forEach((href, i) => add(String(href).replace(/^\\//, '').replace(/\\s+/g, ''), 'https://github.com' + String(href).replace(/\\s+/g, ''), 'GitHub Trending', 'github', 100 - i, null));\nfor (const name of [\"The Verge\",\"Ars Technica\",\"TechCrunch\",\"9to5Mac\",\"9to5Google\"]) for (const it of all(name).slice(0, 8)) add(it.title, it.link, name, 'rss', 50, it.isoDate ?? it.pubDate);\nfor (const name of [\"r/technology\",\"r/gadgets\"]) for (const c of (all(name)[0]?.data?.children ?? []).slice(0, 10)) add(c.data?.title, c.data?.url, 'Reddit ' + name, 'reddit', c.data?.score, c.data?.created_utc ? c.data.created_utc * 1000 : null);\nconst candidates = [...out.values()];\nif (candidates.length < 5) throw new Error('only ' + candidates.length + ' source items fetched; sources down?');\nreturn [{ json: { candidates } }];"
+      },
+      "onError": "continueErrorOutput",
+      "id": "6f4d7876-5aa3-fc07-5770-db399e5d32ae",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Recent topics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT coalesce(json_agg(topic ORDER BY created_at DESC), '[]'::json) AS topics FROM jobs\nWHERE topic IS NOT NULL AND status <> 'failed' AND created_at > now() - interval '60 days';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "aff95aca-f8d8-3708-090d-7341e5d40726",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Scout rank",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "scout",
+            "prompt": "scout_rank",
+            "user_content": "={{ '<candidates>' + JSON.stringify($('Candidates').first().json.candidates.map(({ kinds, ...c }) => c)) + '</candidates>\\n<recent_topics>' + JSON.stringify($json.topics) + '</recent_topics>' }}",
+            "chain": "={{ $env.LLM_CHAIN_SCOUT }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.3 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "0b732da5-28a2-085b-e6ab-ff4569fdf4ac",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "URL check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node checks model-chosen urls against the fetched candidate list.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst r = $input.first().json; const p = r.json ?? {};\nconst byUrl = new Map($('Candidates').first().json.candidates.map((c) => [c.url, c]));\nconst urls = [...new Set((p.source_urls ?? []).map(okUrl).filter((u) => u && byUrl.has(u)))].slice(0, 4);\nif (urls.length < 2) throw new Error('Scout picked fewer than 2 source urls from the candidates');\nif (!urls.some((u) => byUrl.get(u).kinds.some((k) => k === 'rss' || k === 'github'))) throw new Error('no source url comes from an RSS feed or GitHub Trending (HN/Reddit links alone are not independent)');\nif (!(Number(p.shelf_life_days) >= 7)) throw new Error('Scout pick has a shelf life under 7 days');\nlet primary = okUrl(p.primary_url);\nif (!(primary && hostOf(primary) === 'github.com' && byUrl.get(primary)?.kinds.includes('github'))) primary = null;\nreturn [{ json: { topic: String(p.topic ?? '').slice(0, 200), angle: p.angle ?? '', shelf_life_days: Number(p.shelf_life_days), source_urls: urls, primary_url: primary, provider: r.provider } }];"
+      },
+      "onError": "continueErrorOutput",
+      "id": "91701555-06dc-7db1-9b6b-ef98fbd94737",
+      "position": [
+        2340,
+        0
+      ]
+    },
+    {
+      "name": "One per source",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "parameters": {
+        "fieldToSplitOut": "source_urls",
+        "options": {
+          "destinationFieldName": "url"
+        }
+      },
+      "id": "2051a8ca-d628-1dea-343f-18ad6c8d14ea",
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "name": "Fetch source",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; ShortCircuit/1.0)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "proxy": "http://renderer:8899",
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "id": "6784a97d-2c7c-e5e6-ee89-fd80d2d8afe2",
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "name": "Page text",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "dataPropertyName": "data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "article",
+              "cssSelector": "article",
+              "returnValue": "text"
+            },
+            {
+              "key": "main",
+              "cssSelector": "main",
+              "returnValue": "text"
+            },
+            {
+              "key": "body",
+              "cssSelector": "body",
+              "returnValue": "text"
+            }
+          ]
+        },
+        "options": {
+          "cleanUpText": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "47b3b6e0-bc0c-5a7f-303c-c6fee7edfc14",
+      "position": [
+        3120,
+        0
+      ]
+    },
+    {
+      "name": "Trim",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node trims text to a word budget. 2000 words each, so 3 sources still fit Ollama's 16k context.\nconst urls = $('One per source').all().map((i) => i.json.url);\nreturn $input.all().map((it, i) => {\n  const t = [it.json.article, it.json.main, it.json.body].find((x) => typeof x === 'string' && x.split(/\\s+/).length > 80) ?? '';\n  return { json: { url: urls[i], text: t.split(/\\s+/).slice(0, 2000).join(' ') } };\n}).filter((x) => x.json.text);"
+      },
+      "alwaysOutputData": true,
+      "id": "3c96cb9a-b69c-8420-9218-85ed86133ba8",
+      "position": [
+        3380,
+        0
+      ]
+    },
+    {
+      "name": "Injection check",
+      "type": "@n8n/n8n-nodes-langchain.guardrails",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "classify",
+        "text": "={{ $json.text }}",
+        "guardrails": {
+          "jailbreak": {
+            "value": {
+              "threshold": 0.7
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "043e79e6-cccb-1fa7-644d-68618fd375d2",
+      "position": [
+        3640,
+        0
+      ]
+    },
+    {
+      "name": "Guardrails model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "={{ $env.GROQ_MODEL }}",
+        "options": {
+          "temperature": 0,
+          "maxTokensToSample": 8192
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "scCredGroq000001",
+          "name": "Groq"
+        }
+      },
+      "id": "98879e5c-caf6-368f-ddde-6947431157d1",
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "name": "Clean",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "53adb43d-fb58-9e55-6b1f-9d45258b71ee",
+              "name": "url",
+              "value": "={{ $('Trim').item.json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "660ab88c-8a67-5927-85a5-e888db2305d6",
+              "name": "text",
+              "value": "={{ $('Trim').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "9ce8b671-faa8-c0ba-e21c-dcc195ba1d36",
+              "name": "flagged",
+              "value": "={{ false }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a0cbde07-cf53-e23c-5a96-fda6fd73a35f",
+      "position": [
+        3900,
+        0
+      ]
+    },
+    {
+      "name": "Flagged",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "007933bd-04a5-3412-538e-bcd78963f312",
+              "name": "url",
+              "value": "={{ $('Trim').item.json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "30501aa4-a46e-ce6d-c0e9-0fba130c5265",
+              "name": "flagged",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "1a46eb9d-a954-b695-d268-15c8d4011c94",
+              "name": "error",
+              "value": "={{ $json.error ?? \"\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8364d275-342b-4e87-1084-631457c2747a",
+      "position": [
+        3900,
+        220
+      ]
+    },
+    {
+      "name": "Checked sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "parameters": {
+        "numberInputs": 2
+      },
+      "alwaysOutputData": true,
+      "id": "6afbceda-382d-5d3a-49a4-f6f2cbcc1693",
+      "position": [
+        4160,
+        0
+      ]
+    },
+    {
+      "name": "Enough sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node counts the sources left after the injection check.\nconst TAGS = /<\\/?(source|pick|brief|script|context|owner_notes|feedback|flags|previous_script|plan|primary_url|music_moods|candidates|recent_topics|stats|current_schedule)\\b/gi;\nconst tagsafe = (s) => String(s ?? '').replace(TAGS, '[tag]');\n\nconst all = $input.all().map((i) => i.json).filter((j) => j.url);\nconst err = all.find((j) => j.error);\nif (err) throw new Error('Guardrails could not check ' + err.url + ': ' + err.error);\nconst clean = all.filter((j) => !j.flagged && j.text);\nconst pick = $('URL check').first().json;\nconst dropped = pick.source_urls.filter((u) => !clean.some((c) => c.url === u));\nif (clean.length < 2) throw new Error('fewer than 2 usable sources (' + clean.length + ' clean; dropped or unreadable: ' + dropped.join(', ') + ')');\nreturn [{ json: { source_texts: clean.map((c) => ({ url: c.url, text: tagsafe(c.text) })), dropped } }];"
+      },
+      "onError": "continueErrorOutput",
+      "id": "df917d8e-18ba-8599-cb9c-254e333e4a8f",
+      "position": [
+        4420,
+        0
+      ]
+    },
+    {
+      "name": "Scout brief",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "scout",
+            "prompt": "scout_brief",
+            "user_content": "={{ '<pick>' + JSON.stringify((({ provider, ...p }) => p)($('URL check').first().json)) + '</pick>\\n' + $json.source_texts.map(x => '<source url=\"' + x.url + '\">' + x.text + '</source>').join('\\n') }}",
+            "chain": "={{ $env.LLM_CHAIN_SCOUT }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.3 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "48290f86-aed0-c670-f98b-40506885ce0f",
+      "position": [
+        4680,
+        0
+      ]
+    },
+    {
+      "name": "Brief check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node filters model facts against the checked url list.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst r = $input.first().json; const b = r.json ?? {};\nconst pick = $('URL check').first().json; const src = $('Enough sources').first().json;\nconst ok = src.source_texts.map((x) => x.url);\nb.facts = (b.facts ?? []).filter((f) => ok.includes(okUrl(f.source_url)));\nif (b.facts.length < 2) throw new Error('the brief has fewer than 2 facts on checked sources');\nconst meta = (u) => (b.sources ?? []).find((s) => okUrl(s.url) === u) ?? {};\nb.sources = ok.map((u) => ({ url: u, title: String(meta(u).title ?? ''), publisher: String(meta(u).publisher ?? hostOf(u)) }));\nb.topic = String(b.topic || pick.topic).slice(0, 200);\nb.primary_url = pick.primary_url; b.checked_urls = ok; b.dropped_sources = src.dropped; b.source_texts = src.source_texts;\nreturn [{ json: { brief: b, scout_provider: r.provider } }];"
+      },
+      "onError": "continueErrorOutput",
+      "id": "ca7c695d-60e7-f5ab-8373-98c04787f2ea",
+      "position": [
+        4940,
+        0
+      ]
+    },
+    {
+      "name": "Writer 1",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "writer",
+            "prompt": "writer",
+            "user_content": "={{ '<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>' }}",
+            "chain": "={{ $env.LLM_CHAIN_WRITER }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "07569a3b-67f9-cdd7-7e42-082e6d0cd38c",
+      "position": [
+        5200,
+        0
+      ]
+    },
+    {
+      "name": "Rules 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Writer 1').first().json.json;\nconst brief = $('Brief check').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
+      },
+      "id": "a079b864-7975-0bd2-1fe9-0069ac63d83e",
+      "position": [
+        5460,
+        0
+      ]
+    },
+    {
+      "name": "Checker 1",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "checker",
+            "prompt": "checker",
+            "user_content": "={{ '<script>' + JSON.stringify($('Writer 1').first().json.json) + '</script>\\n<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>\\n' + ($('Brief check').first().json.brief.source_texts ?? []).map(x => '<source url=\"' + x.url + '\">' + x.text + '</source>').join('\\n') }}",
+            "chain": "={{ $env.LLM_CHAIN_CHECKER }}",
+            "exclude_provider": "={{ $('Writer 1').first().json.provider }}",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "2c6182ef-4588-6542-a610-5afc7ad89ebf",
+      "position": [
+        5720,
+        0
+      ]
+    },
+    {
+      "name": "Verdict 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules 1').first().json.rules;\nconst script = $('Writer 1').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'writer', writer_provider: $('Writer 1').first().json.provider, checker_provider: c.provider } }];"
+      },
+      "id": "483a577e-0d2e-b6e8-43d1-e5764b708601",
+      "position": [
+        5980,
+        0
+      ]
+    },
+    {
+      "name": "Clean check?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a9708074-d174-8b46-f2d9-b43772a624e7",
+              "leftValue": "={{ $json.pass }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "06d19841-92ce-e26c-eefc-4dfc649fae64",
+      "position": [
+        6240,
+        0
+      ]
+    },
+    {
+      "name": "Writer fix",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "writer",
+            "prompt": "writer",
+            "user_content": "={{ '<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>\\n<flags>' + JSON.stringify($('Verdict 1').first().json.flags) + '</flags>\\n<previous_script>' + JSON.stringify($('Verdict 1').first().json.script) + '</previous_script>' }}",
+            "chain": "={{ $env.LLM_CHAIN_WRITER }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "ec829ae2-b445-d649-ca61-ccbd5f6ae8f1",
+      "position": [
+        6500,
+        0
+      ]
+    },
+    {
+      "name": "Rules fix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Writer fix').first().json.json;\nconst brief = $('Brief check').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
+      },
+      "id": "0641a73f-5e8b-80e8-b42a-58b180db30bf",
+      "position": [
+        6760,
+        0
+      ]
+    },
+    {
+      "name": "Checker fix",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "checker",
+            "prompt": "checker",
+            "user_content": "={{ '<script>' + JSON.stringify($('Writer fix').first().json.json) + '</script>\\n<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>\\n' + ($('Brief check').first().json.brief.source_texts ?? []).map(x => '<source url=\"' + x.url + '\">' + x.text + '</source>').join('\\n') }}",
+            "chain": "={{ $env.LLM_CHAIN_CHECKER }}",
+            "exclude_provider": "={{ $('Writer fix').first().json.provider }}",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "1f089432-1b4f-91e4-08e4-87a7ad143e0f",
+      "position": [
+        7020,
+        0
+      ]
+    },
+    {
+      "name": "Verdict fix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules fix').first().json.rules;\nconst script = $('Writer fix').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'writer', writer_provider: $('Writer fix').first().json.provider, checker_provider: c.provider } }];"
+      },
+      "id": "1320bdd1-967f-ebba-33f3-3510373c26b3",
+      "position": [
+        7280,
+        0
+      ]
+    },
+    {
+      "name": "Master review",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "scb470ce13b6711e",
+          "mode": "list",
+          "cachedResultName": "sc.ask_master"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "task": "review_script",
+            "job_id": "={{ $('Claim').first().json.id }}",
+            "context": "={{ JSON.stringify({ brief: { ...$('Brief check').first().json.brief, source_texts: undefined }, script: $('Verdict 1').first().json.script, check: $('Verdict 1').first().json.check }) }}",
+            "image_path": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "task",
+              "displayName": "task",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "context",
+              "displayName": "context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "image_path",
+              "displayName": "image_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "0f54062d-7b34-e93b-8ab8-49df26209ad9",
+      "position": [
+        6500,
+        220
+      ]
+    },
+    {
+      "name": "Redo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d97974a6-8fdd-a84d-44d1-60b5520462af",
+              "leftValue": "={{ $json.ok === true && $json.json?.verdict === \"redo\" }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "17269bc9-4821-7e42-7a16-884babf1b734",
+      "position": [
+        6760,
+        220
+      ]
+    },
+    {
+      "name": "Writer redo",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "writer",
+            "prompt": "writer",
+            "user_content": "={{ '<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>\\n<feedback>' + String($('Master review').first().json.json.feedback ?? '') + '</feedback>\\n<previous_script>' + JSON.stringify($('Verdict 1').first().json.script) + '</previous_script>' }}",
+            "chain": "={{ $env.LLM_CHAIN_WRITER }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "845794fa-43ee-e1b6-9db0-5cf784d25af2",
+      "position": [
+        7020,
+        220
+      ]
+    },
+    {
+      "name": "Rules redo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Writer redo').first().json.json;\nconst brief = $('Brief check').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
+      },
+      "id": "9a6199c4-8c3f-ec9b-b116-29b93ae55267",
+      "position": [
+        7280,
+        220
+      ]
+    },
+    {
+      "name": "Checker redo",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "checker",
+            "prompt": "checker",
+            "user_content": "={{ '<script>' + JSON.stringify($('Writer redo').first().json.json) + '</script>\\n<brief>' + JSON.stringify({ ...$('Brief check').first().json.brief, source_texts: undefined }) + '</brief>\\n' + ($('Brief check').first().json.brief.source_texts ?? []).map(x => '<source url=\"' + x.url + '\">' + x.text + '</source>').join('\\n') }}",
+            "chain": "={{ $env.LLM_CHAIN_CHECKER }}",
+            "exclude_provider": "={{ $('Writer redo').first().json.provider }}",
+            "temperature": "={{ 0.4 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "e925ebb2-f953-738e-e493-835569b89c3b",
+      "position": [
+        7540,
+        0
+      ]
+    },
+    {
+      "name": "Verdict redo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules redo').first().json.rules;\nconst script = $('Writer redo').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'writer', writer_provider: $('Writer redo').first().json.provider, checker_provider: c.provider } }];"
+      },
+      "id": "93eef900-8f04-f7cf-dfe0-634133ec9e3e",
+      "position": [
+        7800,
+        0
+      ]
+    },
+    {
+      "name": "Finish",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = $2, topic = $3, brief = $4::jsonb, script = $5::jsonb, check_result = $6::jsonb,\n  providers = providers || $7::jsonb, master_rounds = master_rounds + $8, review_sent_at = NULL, review_url = NULL,\n  attempts = 0, locked_at = NULL, last_error = NULL, updated_at = now()\nWHERE id = $1 AND status = 'new' RETURNING id, status, $9::text AS reason;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim').first().json.id, $json.status, $('Brief check').first().json.brief.topic, JSON.stringify($('Brief check').first().json.brief), JSON.stringify($json.script), JSON.stringify($json.check), JSON.stringify($json.providers), $json.master_inc, $json.reason] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "2f87ecdd-27ec-bca9-b634-d854dd7ddf96",
+      "position": [
+        8320,
+        0
+      ]
+    },
+    {
+      "name": "Result clean",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "df7d695f-3c9e-0cd9-3a82-199d37b3190c",
+              "name": "status",
+              "value": "={{ $('Verdict 1').first().json.pass ? 'script_review' : 'needs_human' }}",
+              "type": "string"
+            },
+            {
+              "id": "774a2950-57a5-523b-604e-d6d8ae56b3f9",
+              "name": "script",
+              "value": "={{ $('Verdict 1').first().json.script }}",
+              "type": "object"
+            },
+            {
+              "id": "fd77f9a7-9f85-cdec-73f5-5a3a40a5a422",
+              "name": "check",
+              "value": "={{ $('Verdict 1').first().json.check }}",
+              "type": "object"
+            },
+            {
+              "id": "a1d07c0e-006c-c171-6eda-a2ae37922b89",
+              "name": "providers",
+              "value": "={{ { scout: $('Brief check').first().json.scout_provider, writer: $('Verdict 1').first().json.writer_provider, checker: $('Verdict 1').first().json.checker_provider } }}",
+              "type": "object"
+            },
+            {
+              "id": "56fe41a3-1087-4b33-bdca-dafb86ec6ff8",
+              "name": "master_inc",
+              "value": "={{ 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "ff84162e-2ea4-af19-456a-935b76428c50",
+              "name": "reason",
+              "value": "={{ $('Verdict 1').first().json.pass ? '' : 'the Checker flagged: ' + $('Verdict 1').first().json.flags.join('; ').slice(0, 300) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a4318d02-c1a9-4808-e5f6-a42dc4fc7f30",
+      "position": [
+        7020,
+        440
+      ]
+    },
+    {
+      "name": "Result fixed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2f0a30d7-ec40-03f8-cfdd-dcaf9ffdcfd5",
+              "name": "status",
+              "value": "={{ $('Verdict fix').first().json.pass ? 'script_review' : 'needs_human' }}",
+              "type": "string"
+            },
+            {
+              "id": "1cdcfaf5-7697-aa87-ab6c-22800b165a4b",
+              "name": "script",
+              "value": "={{ $('Verdict fix').first().json.script }}",
+              "type": "object"
+            },
+            {
+              "id": "f297ad87-784c-07ba-4210-d86edee7d5c4",
+              "name": "check",
+              "value": "={{ $('Verdict fix').first().json.check }}",
+              "type": "object"
+            },
+            {
+              "id": "d8051eed-2cd8-6224-94bc-27c2c0246d57",
+              "name": "providers",
+              "value": "={{ { scout: $('Brief check').first().json.scout_provider, writer: $('Verdict fix').first().json.writer_provider, checker: $('Verdict fix').first().json.checker_provider } }}",
+              "type": "object"
+            },
+            {
+              "id": "207cc1a6-ee2c-1622-ef37-00c21e839a24",
+              "name": "master_inc",
+              "value": "={{ 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "5f07785a-9748-494d-0198-1e1c4048df7c",
+              "name": "reason",
+              "value": "={{ $('Verdict fix').first().json.pass ? '' : 'the Checker flagged: ' + $('Verdict fix').first().json.flags.join('; ').slice(0, 300) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "01f7e39f-08e5-d5b7-b3bc-26bd3947e20d",
+      "position": [
+        7540,
+        220
+      ]
+    },
+    {
+      "name": "Result redone",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "999d18f6-0dd7-0828-5375-402b69ce6dce",
+              "name": "status",
+              "value": "={{ $('Verdict redo').first().json.pass ? 'script_review' : 'needs_human' }}",
+              "type": "string"
+            },
+            {
+              "id": "199a8fdc-7cff-c238-16da-4d7f6889610c",
+              "name": "script",
+              "value": "={{ $('Verdict redo').first().json.script }}",
+              "type": "object"
+            },
+            {
+              "id": "7606b5b5-6846-79a0-7d20-4c875e5eaa95",
+              "name": "check",
+              "value": "={{ $('Verdict redo').first().json.check }}",
+              "type": "object"
+            },
+            {
+              "id": "ae3d6249-f9b1-5d72-a598-ab455bbcc5da",
+              "name": "providers",
+              "value": "={{ { scout: $('Brief check').first().json.scout_provider, writer: $('Verdict redo').first().json.writer_provider, checker: $('Verdict redo').first().json.checker_provider } }}",
+              "type": "object"
+            },
+            {
+              "id": "c815601c-2056-2718-5191-11c4a603e22f",
+              "name": "master_inc",
+              "value": "={{ 1 }}",
+              "type": "number"
+            },
+            {
+              "id": "30a70bd7-077f-1149-c5dd-752f5b7e197b",
+              "name": "reason",
+              "value": "={{ $('Verdict redo').first().json.pass ? '' : 'the Checker flagged: ' + $('Verdict redo').first().json.flags.join('; ').slice(0, 300) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "36a20966-2ed0-7b67-660e-e0037d0cb9dc",
+      "position": [
+        8060,
+        0
+      ]
+    },
+    {
+      "name": "Start review",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc4d059aed76eeee",
+          "mode": "list",
+          "cachedResultName": "sc.review"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.id }}",
+            "kind": "={{ $json.status === 'needs_human' ? 'needs_human' : 'script' }}",
+            "reason": "={{ $json.reason }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "kind",
+              "displayName": "kind",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "1b4b36a3-865a-c980-c606-d95dbe60697d",
+      "position": [
+        8840,
+        0
+      ]
+    },
+    {
+      "name": "Claim found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "89d05aa8-c665-aa48-f70b-6844a06fcf68",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "c6ab39d9-0a3f-8911-71e9-7f08d0f89bba",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Finish found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bfe60111-6bad-237e-00b4-cb78e67182e1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "82bf0aaa-f68c-470a-79f3-22aea6f8d002",
+      "position": [
+        8580,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Every 2 min": {
+      "main": [
+        [
+          {
+            "node": "Claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim": {
+      "main": [
+        [
+          {
+            "node": "Claim found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub Trending": {
+      "main": [
+        [
+          {
+            "node": "Trending repos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HN": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trending repos": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "The Verge": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Ars Technica": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "TechCrunch": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "9to5Mac": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "9to5Google": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "r/technology": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "r/gadgets": {
+      "main": [
+        [
+          {
+            "node": "All sources",
+            "type": "main",
+            "index": 8
+          }
+        ]
+      ]
+    },
+    "All sources": {
+      "main": [
+        [
+          {
+            "node": "Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidates": {
+      "main": [
+        [
+          {
+            "node": "Recent topics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent topics": {
+      "main": [
+        [
+          {
+            "node": "Scout rank",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scout rank": {
+      "main": [
+        [
+          {
+            "node": "URL check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "URL check": {
+      "main": [
+        [
+          {
+            "node": "One per source",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One per source": {
+      "main": [
+        [
+          {
+            "node": "Fetch source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch source": {
+      "main": [
+        [
+          {
+            "node": "Page text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page text": {
+      "main": [
+        [
+          {
+            "node": "Trim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrails model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Injection check",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trim": {
+      "main": [
+        [
+          {
+            "node": "Injection check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Injection check": {
+      "main": [
+        [
+          {
+            "node": "Clean",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flagged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean": {
+      "main": [
+        [
+          {
+            "node": "Checked sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flagged": {
+      "main": [
+        [
+          {
+            "node": "Checked sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Checked sources": {
+      "main": [
+        [
+          {
+            "node": "Enough sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enough sources": {
+      "main": [
+        [
+          {
+            "node": "Scout brief",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scout brief": {
+      "main": [
+        [
+          {
+            "node": "Brief check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief check": {
+      "main": [
+        [
+          {
+            "node": "Writer 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Writer 1": {
+      "main": [
+        [
+          {
+            "node": "Rules 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rules 1": {
+      "main": [
+        [
+          {
+            "node": "Checker 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker 1": {
+      "main": [
+        [
+          {
+            "node": "Verdict 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verdict 1": {
+      "main": [
+        [
+          {
+            "node": "Clean check?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Writer fix": {
+      "main": [
+        [
+          {
+            "node": "Rules fix",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rules fix": {
+      "main": [
+        [
+          {
+            "node": "Checker fix",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker fix": {
+      "main": [
+        [
+          {
+            "node": "Verdict fix",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean check?": {
+      "main": [
+        [
+          {
+            "node": "Master review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Writer fix",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Master review": {
+      "main": [
+        [
+          {
+            "node": "Redo?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Writer redo": {
+      "main": [
+        [
+          {
+            "node": "Rules redo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rules redo": {
+      "main": [
+        [
+          {
+            "node": "Checker redo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checker redo": {
+      "main": [
+        [
+          {
+            "node": "Verdict redo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redo?": {
+      "main": [
+        [
+          {
+            "node": "Writer redo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result clean",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result clean": {
+      "main": [
+        [
+          {
+            "node": "Finish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result fixed": {
+      "main": [
+        [
+          {
+            "node": "Finish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result redone": {
+      "main": [
+        [
+          {
+            "node": "Finish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verdict fix": {
+      "main": [
+        [
+          {
+            "node": "Result fixed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verdict redo": {
+      "main": [
+        [
+          {
+            "node": "Result redone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish": {
+      "main": [
+        [
+          {
+            "node": "Finish found?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim found?": {
+      "main": [
+        [
+          {
+            "node": "GitHub Trending",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HN",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "The Verge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ars Technica",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TechCrunch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "9to5Mac",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "9to5Google",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "r/technology",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "r/gadgets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish found?": {
+      "main": [
+        [
+          {
+            "node": "Start review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Claims a new job: sources → Scout rank → url check → fetch (via the renderer proxy) → Guardrails → Scout brief → Writer → Checker (→ fix) → Master review (→ redo) → script_review / needs_human → sc.review (PLAN §10.6)."
+}

@@ -1,0 +1,352 @@
+{
+  "id": "sc71e30059a98393",
+  "name": "sc.housekeeping",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Sunday 03:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "03c51a0d-622d-9898-45bd-11ac19206411",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Prune cache",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:8000/cache/prune",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "id": "28d8e10d-2ea6-0112-9f48-24d6418e0d1a",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Drop old rows",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH a AS (DELETE FROM reviews WHERE answered_at < now() - interval '90 days' RETURNING 1),\nb AS (DELETE FROM master_log WHERE created_at < now() - interval '90 days' RETURNING 1)\nSELECT (SELECT count(*) FROM a) AS reviews, (SELECT count(*) FROM b) AS master_log;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "88849e58-7ab0-bc93-38f5-96a0aeeffcf8",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Drive state",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT value FROM config_seen WHERE key = 'drive_ready') AS folder_id,\n  coalesce((SELECT json_agg(drive_file_id) FROM jobs WHERE drive_file_id IS NOT NULL AND status NOT IN ('cancelled', 'rejected', 'failed', 'done')), '[]'::json) AS keep;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "06a64916-9d40-28e7-e0cb-c60beb509b07",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Folder known?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6b776d66-63a1-31c7-cf71-2d1b2c33d6aa",
+              "leftValue": "={{ $json.folder_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "9127e1fc-99ac-755d-8ed0-c1ac4aee73b3",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Ready files",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $json.folder_id + \"' in parents and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "id",
+            "name",
+            "parents"
+          ]
+        }
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "scCredDriveBot01",
+          "name": "Drive Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 20000,
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true,
+      "id": "8b29c8e1-00f4-df03-b7e9-3d5b9d51c9e2",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Orphans",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6a1fcf48-0a55-0051-ab19-035c0a159896",
+              "leftValue": "={{ !!$json.id && !$('Drive state').first().json.keep.includes($json.id) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d3f7bc5a-ee91-7cb8-e30b-760a4a111252",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Delete orphan",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "parameters": {
+        "operation": "deleteFile",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "deletePermanently": true
+        }
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "scCredDriveBot01",
+          "name": "Drive Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 20000,
+      "onError": "continueErrorOutput",
+      "id": "5de82354-67c2-6d11-e96a-1e7eebb9ec60",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Forget file",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET drive_file_id = NULL, drive_link = NULL WHERE drive_file_id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Orphans').item.json.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "9772b2cb-66c2-388c-9587-247ea4a7a6bd",
+      "position": [
+        2080,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Sunday 03:00": {
+      "main": [
+        [
+          {
+            "node": "Prune cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prune cache": {
+      "main": [
+        [
+          {
+            "node": "Drop old rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drop old rows": {
+      "main": [
+        [
+          {
+            "node": "Drive state",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drive state": {
+      "main": [
+        [
+          {
+            "node": "Folder known?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Folder known?": {
+      "main": [
+        [
+          {
+            "node": "Ready files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready files": {
+      "main": [
+        [
+          {
+            "node": "Orphans",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orphans": {
+      "main": [
+        [
+          {
+            "node": "Delete orphan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete orphan": {
+      "main": [
+        [
+          {
+            "node": "Forget file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Sunday 03:00: prunes the renderer clip cache, deletes Drive files of no active job, drops audit rows older than 90 days (PLAN §7, §10.6)."
+}

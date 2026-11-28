@@ -33,6 +33,11 @@ MUSIC_EXT = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"}
 RENDER_LOCK = threading.Lock()
 
 
+def music_moods() -> list[str]:
+    music = ASSETS / "music"
+    return sorted(p.name for p in music.iterdir() if p.is_dir()) if music.is_dir() else []
+
+
 def job_id_ok(job_id: str) -> str:
     # [0-9], not \d: \d also matches non-ASCII digits. The id becomes a folder name.
     if not re.fullmatch(r"SC-[0-9]{4,}", job_id):
@@ -67,7 +72,7 @@ class Plan(BaseModel):
     @classmethod
     def mood_is_a_folder(cls, mood: str) -> str:
         # Compared with the folder listing, never joined into a path first.
-        moods = {p.name for p in (ASSETS / "music").iterdir() if p.is_dir()} if (ASSETS / "music").is_dir() else set()
+        moods = music_moods()
         if mood not in moods:
             raise ValueError(f"music_mood must be one of {sorted(moods)}")
         return mood
@@ -90,7 +95,8 @@ app = FastAPI(title="ShortCircuit renderer", lifespan=lifespan)
 
 @app.get("/health")
 def health():
-    return {"ok": True, "rendering": RENDER_LOCK.locked()}
+    # moods: the Director picks music_mood from this list (sc.render), n8n cannot list /assets.
+    return {"ok": True, "rendering": RENDER_LOCK.locked(), "moods": music_moods()}
 
 
 @app.post("/render")

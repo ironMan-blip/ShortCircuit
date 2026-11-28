@@ -1,0 +1,1109 @@
+{
+  "id": "scb470ce13b6711e",
+  "name": "sc.ask_master",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "task",
+              "type": "any"
+            },
+            {
+              "name": "job_id",
+              "type": "any"
+            },
+            {
+              "name": "context",
+              "type": "any"
+            },
+            {
+              "name": "image_path",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "e4411f46-b609-620e-b1da-ef342c76b72f",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node checks the task name and builds the per-task settings.\nconst i = $input.first().json;\nconst schemas = { review_script: \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"verdict\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"ok\\\",\\\"redo\\\"]},\\\"score\\\":{\\\"type\\\":\\\"integer\\\",\\\"minimum\\\":1,\\\"maximum\\\":10},\\\"issues\\\":{\\\"type\\\":\\\"array\\\",\\\"items\\\":{\\\"type\\\":\\\"string\\\"}},\\\"feedback\\\":{\\\"type\\\":\\\"string\\\"}},\\\"required\\\":[\\\"verdict\\\",\\\"score\\\",\\\"issues\\\",\\\"feedback\\\"]}\", review_video: \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"verdict\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"ok\\\",\\\"redo\\\"]},\\\"score\\\":{\\\"type\\\":\\\"integer\\\",\\\"minimum\\\":1,\\\"maximum\\\":10},\\\"issues\\\":{\\\"type\\\":\\\"array\\\",\\\"items\\\":{\\\"type\\\":\\\"string\\\"}},\\\"feedback\\\":{\\\"type\\\":\\\"string\\\"}},\\\"required\\\":[\\\"verdict\\\",\\\"score\\\",\\\"issues\\\",\\\"feedback\\\"]}\", diagnose_grade: \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"agents\\\":{\\\"type\\\":\\\"array\\\",\\\"items\\\":{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"agent\\\":{\\\"type\\\":\\\"string\\\"},\\\"status\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"good\\\",\\\"weak\\\",\\\"failing\\\"]},\\\"score\\\":{\\\"type\\\":\\\"integer\\\",\\\"minimum\\\":1,\\\"maximum\\\":10},\\\"best_provider\\\":{\\\"type\\\":\\\"string\\\"},\\\"notes\\\":{\\\"type\\\":\\\"string\\\"}},\\\"required\\\":[\\\"agent\\\",\\\"status\\\",\\\"score\\\",\\\"best_provider\\\",\\\"notes\\\"]}},\\\"candidates\\\":{\\\"type\\\":\\\"array\\\",\\\"items\\\":{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"model\\\":{\\\"type\\\":\\\"string\\\"},\\\"agent\\\":{\\\"type\\\":\\\"string\\\"},\\\"better\\\":{\\\"type\\\":\\\"boolean\\\"},\\\"evidence\\\":{\\\"type\\\":\\\"string\\\"}},\\\"required\\\":[\\\"model\\\",\\\"agent\\\",\\\"better\\\",\\\"evidence\\\"]}},\\\"report\\\":{\\\"type\\\":\\\"string\\\"}},\\\"required\\\":[\\\"agents\\\",\\\"candidates\\\",\\\"report\\\"]}\" };\nconst ok = ['review_script', 'review_video', 'diagnose_grade', 'diagnose_research'].includes(i.task);\nconst job_id = Number.isInteger(Number(i.job_id)) && Number(i.job_id) > 0 ? Number(i.job_id) : null;\nreturn [{ json: { ok, task: i.task, job_id, context: typeof i.context === 'string' ? i.context : JSON.stringify(i.context ?? {}), image_path: i.image_path || '',\n  schema: schemas[i.task] ?? '', effort: i.task === 'diagnose_grade' ? 'high' : ($env.MASTER_EFFORT || 'medium') } }];"
+      },
+      "id": "a158acf2-c7f0-8c52-f1f3-89968c38315c",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Read prompt",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ '/prompts/master_' + $json.task + '.md' }}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "id": "a97c154e-e786-bffe-5731-d572ca04591a",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Prompt text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "text",
+        "destinationKey": "prompt",
+        "options": {}
+      },
+      "id": "a25718a5-afa0-cf68-6ec9-24974464d123",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Path",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "972d3832-9d10-c394-8c51-3bfb2aa0e1cf",
+                    "leftValue": "={{ $('Task').first().json.task }}",
+                    "rightValue": "review_video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4f5e467b-ed65-c0cc-f06e-bfd641dda7f4",
+                    "leftValue": "={{ ['review_script', 'diagnose_grade'].includes($('Task').first().json.task) }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "judge"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00897516-ae46-e739-d47c-ef750b8afdc6",
+                    "leftValue": "={{ $('Task').first().json.task }}",
+                    "rightValue": "diagnose_research",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "research"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d2c5651c-ecfe-548a-b101-37b38e65902b",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Bad task",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1936ca1c-8555-531e-fb42-fea7e5132cc1",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "2dc7e572-e329-2da2-9752-f5e1e52fa80c",
+              "name": "reason",
+              "value": "invalid",
+              "type": "string"
+            },
+            {
+              "id": "1c0055b2-cddf-dae1-adb1-9c17938c6251",
+              "name": "detail",
+              "value": "={{ 'unknown task ' + $('Task').first().json.task }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "795d2684-8033-4184-8f28-03174decf4d5",
+      "position": [
+        780,
+        220
+      ]
+    },
+    {
+      "name": "Known task?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1ef5194d-8362-3720-f8cc-6d3cd4c0b3e7",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "79a0641d-ad9f-8c18-d3f5-4a9ac10f8a85",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Read image",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Task').first().json.image_path }}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "id": "a632d541-87b8-90b9-6862-790f47cf03c7",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Judge",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ '<context>\\n' + String($('Task').first().json.context ?? '').replace(/<\\/?context\\b/gi, '[tag]') + '\\n</context>' }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "={{ $('Prompt text').first().json.prompt }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 30000,
+      "id": "70504578-1cd2-afc4-f8c3-927a662b05af",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Claude Judge",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MASTER_MODEL }}"
+        },
+        "options": {
+          "maxTokensToSample": 16000,
+          "thinkingMode": "adaptive",
+          "effort": "={{ $('Task').first().json.effort }}"
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "scCredAnthropic1",
+          "name": "Anthropic"
+        }
+      },
+      "id": "a8c145ad-1e05-93d8-1bbd-d581f92b0a80",
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "name": "Parser Judge",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={{ $('Task').first().json.schema }}"
+      },
+      "id": "7a6963f5-d3ea-13a5-ee76-cee285c1cf47",
+      "position": [
+        0,
+        440
+      ]
+    },
+    {
+      "name": "Judge image",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ '<context>\\n' + String($('Task').first().json.context ?? '').replace(/<\\/?context\\b/gi, '[tag]') + '\\n</context>' }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "={{ $('Prompt text').first().json.prompt }}"
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "data"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 30000,
+      "id": "7a68920b-a1c6-2e66-04e2-e3cdf25246b1",
+      "position": [
+        1820,
+        220
+      ]
+    },
+    {
+      "name": "Claude Judge image",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MASTER_MODEL }}"
+        },
+        "options": {
+          "maxTokensToSample": 16000,
+          "thinkingMode": "adaptive",
+          "effort": "={{ $('Task').first().json.effort }}"
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "scCredAnthropic1",
+          "name": "Anthropic"
+        }
+      },
+      "id": "d418e5df-2a57-05ef-21c1-c7d179d7588d",
+      "position": [
+        0,
+        660
+      ]
+    },
+    {
+      "name": "Parser Judge image",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={{ $('Task').first().json.schema }}"
+      },
+      "id": "7c8873ee-75c7-4356-87ab-531b9051b08a",
+      "position": [
+        0,
+        880
+      ]
+    },
+    {
+      "name": "Map error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node maps an API or parser error to one reason code.\nconst e = $input.first().json; const m = String(e.error?.message ?? e.error ?? e.message ?? 'error') + ' ' + String(e.error?.description ?? '');\nconst reason = /401|403|invalid x-api-key|api key|authentication|permission/i.test(m) ? 'auth'\n  : /429|rate.?limit|spend|credit balance|usage limit|quota/i.test(m) ? 'limit'\n  : /timeout|timed out|ETIMEDOUT|ECONNABORTED/i.test(m) ? 'timeout'\n  : /parse|schema|output parser|JSON|format/i.test(m) ? 'invalid' : 'down';\nreturn [{ json: { ok: false, reason, detail: m.slice(0, 500) } }];"
+      },
+      "id": "7620551d-30f4-2eab-021b-93c4a4a08743",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "Check verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// The Master's output is untrusted even when it parses: check enums and names in code.\nconst o = $input.first().json.output ?? {}; const task = $('Task').first().json.task;\nconst bad = (why) => [{ json: { ok: false, reason: 'invalid', detail: why } }];\nif (task === 'diagnose_grade') {\n  const agents = (o.agents ?? []).filter((a) => [\"scout\",\"writer\",\"checker\",\"editor\",\"director\",\"cutter\",\"scheduler\"].includes(a.agent) && ['good', 'weak', 'failing'].includes(a.status));\n  const candidates = (o.candidates ?? []).filter((c) => /^(gemini|groq|ollama):[A-Za-z0-9._:\\/-]{1,100}$/.test(c.model) && [\"scout\",\"writer\",\"checker\",\"editor\",\"director\",\"cutter\",\"scheduler\"].includes(c.agent));\n  return [{ json: { ok: true, json: { agents, candidates, report: String(o.report ?? '').slice(0, 4000) }, model: $env.MASTER_MODEL } }];\n}\nif (!['ok', 'redo'].includes(o.verdict)) return bad('verdict is not ok/redo');\nconst score = Math.max(1, Math.min(10, Math.round(Number(o.score) || 1)));\nreturn [{ json: { ok: true, json: { verdict: o.verdict, score, issues: (o.issues ?? []).map(String).slice(0, 10), feedback: String(o.feedback ?? '').slice(0, 1500) }, model: $env.MASTER_MODEL } }];"
+      },
+      "id": "060ba4eb-a60e-31b6-f102-2b6e93d28628",
+      "position": [
+        2080,
+        220
+      ]
+    },
+    {
+      "name": "Build request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node builds a Messages API body with server-side web tools (the contrast lesson, PLAN §5.1).\nconst DIAG_WEB_DOMAINS = [\"ai.google.dev\",\"groq.com\",\"console.groq.com\",\"ollama.com\",\"huggingface.co\",\"github.com\",\"lmarena.ai\",\"artificialanalysis.ai\"];\nconst ctx = String($('Task').first().json.context).replace(/<\\/?context\\b/gi, '[tag]');\nconst body = { model: $env.MASTER_MODEL, max_tokens: 32000, output_config: { effort: 'high' },\n  // server-side fallback on a refusal (claude-api default for Opus 5.5)\n  fallbacks: 'default',\n  system: $('Prompt text').first().json.prompt,\n  messages: [{ role: 'user', content: [{ type: 'text', text: '<context>\\n' + ctx + '\\n</context>' }] }],\n  tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 10, allowed_domains: DIAG_WEB_DOMAINS },\n          { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 10, allowed_domains: DIAG_WEB_DOMAINS }] };\nreturn [{ json: { body, resumes: 0, retries: 0, searches: 0, input_tokens: 0, output_tokens: 0 } }];"
+      },
+      "id": "068d31b8-9bdd-2883-1942-341cfc7a9db5",
+      "position": [
+        1560,
+        220
+      ]
+    },
+    {
+      "name": "Messages API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2026-10-21"
+            },
+            {
+              "name": "anthropic-beta",
+              "value": "server-side-fallback-2026-07-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 600000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "scCredAnthHeader",
+          "name": "Anthropic Header"
+        }
+      },
+      "id": "7ae6d5c5-3cc2-38ae-a0b3-75056d5d773e",
+      "position": [
+        14820,
+        0
+      ]
+    },
+    {
+      "name": "Check response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node handles pause_turn, retry-after and \"parse the last JSON object\" for a raw API reply.\nconst prev = $('Messages API').isExecuted && $input.first().json ? $input.first().json : {};\nconst st = $('Next call').isExecuted ? $('Next call').last().json : $('Build request').first().json;\nconst r = prev; const code = Number(r.statusCode ?? 0); const b = r.body ?? {};\nconst usage = { input_tokens: st.input_tokens + (b.usage?.input_tokens ?? 0), output_tokens: st.output_tokens + (b.usage?.output_tokens ?? 0),\n  web_search_requests: st.searches + (b.usage?.server_tool_use?.web_search_requests ?? 0) };\nconst fail = (reason, detail) => [{ json: { done: true, ok: false, reason, detail: String(detail).slice(0, 2000), usage } }];\nif ([429, 529].includes(code) || code >= 500) {\n  if (st.retries < 1) return [{ json: { done: false, wait: Math.min(60, Number(r.headers?.['retry-after']) || 20), next: { ...st, retries: st.retries + 1 } } }];\n  return fail(code === 429 ? 'limit' : 'down', 'HTTP ' + code);\n}\nif (code === 401 || code === 403) return fail('auth', 'HTTP ' + code);\nif (code !== 200) return fail(code === 400 ? 'invalid' : 'down', 'HTTP ' + code + ' ' + JSON.stringify(b).slice(0, 1500));\nif (b.stop_reason === 'pause_turn') {\n  if (st.resumes >= 3) return fail('invalid', 'pause_turn 3 times');\n  // resend with the paused reply appended; no new user message\n  const body = { ...st.body, messages: [...st.body.messages, { role: 'assistant', content: b.content }] };\n  return [{ json: { done: false, wait: 0, next: { ...st, body, resumes: st.resumes + 1, retries: 0, searches: usage.web_search_requests, input_tokens: usage.input_tokens, output_tokens: usage.output_tokens } } }];\n}\nif (b.stop_reason !== 'end_turn') return fail('invalid', 'stop_reason ' + b.stop_reason);\nconst blocks = b.content ?? []; let last = -1;\nblocks.forEach((x, i) => { if (/_tool_result$/.test(x.type)) last = i; });\nconst text = blocks.slice(last + 1).filter((x) => x.type === 'text').map((x) => x.text).join('');\nconst end = text.lastIndexOf('}'); let obj = null;\nfor (let s = text.lastIndexOf('{', end); s >= 0 && !obj; s = text.lastIndexOf('{', s - 1)) { try { obj = JSON.parse(text.slice(s, end + 1)); if (!obj.in_use) obj = null; } catch {} }\nif (!obj) return fail('invalid', 'no JSON object with in_use at the end of the reply');\nconst arr = (a) => (Array.isArray(a) ? a : []);\nconst json = {\n  in_use: arr(obj.in_use).map((x) => ({ model: String(x.model ?? ''), free: ['yes', 'no', 'unknown'].includes(x.free) ? x.free : 'unknown', limits: String(x.limits ?? '').slice(0, 300), source_url: String(x.source_url ?? '') })),\n  candidates: arr(obj.candidates).slice(0, 3).filter((c) => /^(gemini|groq|ollama):[A-Za-z0-9._:\\/-]{1,100}$/.test(c.model)).map((c) => ({ model: c.model, agents: arr(c.agents).filter((a) => [\"scout\",\"writer\",\"checker\",\"editor\",\"director\",\"cutter\",\"scheduler\"].includes(a)), why: String(c.why ?? '').slice(0, 500), free: String(c.free ?? ''), size_gb: Number(c.size_gb) || null, source_url: String(c.source_url ?? '') })),\n  other_options: arr(obj.other_options).slice(0, 10).map((o) => ({ text: String(o.text ?? '').slice(0, 500), source_url: String(o.source_url ?? '') })),\n};\nreturn [{ json: { done: true, ok: true, json, model: b.model ?? $env.MASTER_MODEL, usage } }];"
+      },
+      "id": "33bbf6eb-c599-6127-cbcd-8a7599d4c694",
+      "position": [
+        15080,
+        0
+      ]
+    },
+    {
+      "name": "Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bd680f14-169d-d20b-a919-d80c2c4c90ad",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a59ccd5b-df61-63af-00f5-082615aa7f2c",
+      "position": [
+        15340,
+        0
+      ]
+    },
+    {
+      "name": "Wait retry",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "parameters": {
+        "amount": "={{ $json.wait || 1 }}",
+        "unit": "seconds"
+      },
+      "webhookId": "sc-ask-master-wait",
+      "id": "b3733631-8b63-8338-422c-33695639bf50",
+      "position": [
+        14300,
+        0
+      ]
+    },
+    {
+      "name": "Next call",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "021a254d-b744-878a-ddee-0e8e719a880c",
+              "name": "body",
+              "value": "={{ $json.next.body }}",
+              "type": "object"
+            },
+            {
+              "id": "48d608d3-8dd0-4a8a-0df2-0a435c68b9e8",
+              "name": "resumes",
+              "value": "={{ $json.next.resumes }}",
+              "type": "number"
+            },
+            {
+              "id": "041b29c5-86bb-b800-3117-588466253477",
+              "name": "retries",
+              "value": "={{ $json.next.retries }}",
+              "type": "number"
+            },
+            {
+              "id": "c86ebab6-86bd-1e05-18cf-9d2e8404b860",
+              "name": "searches",
+              "value": "={{ $json.next.searches }}",
+              "type": "number"
+            },
+            {
+              "id": "a7e0b73d-79e2-a70e-c7f3-96b8c40ab281",
+              "name": "input_tokens",
+              "value": "={{ $json.next.input_tokens }}",
+              "type": "number"
+            },
+            {
+              "id": "331950f8-219d-9bd2-74ab-eefd800363a1",
+              "name": "output_tokens",
+              "value": "={{ $json.next.output_tokens }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f222105-6e9f-5aad-d118-91c8572562fa",
+      "position": [
+        14560,
+        0
+      ]
+    },
+    {
+      "name": "Answer",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "98a7e0a4-24be-df16-3d32-9bede5993ad6",
+              "name": "ok",
+              "value": "={{ $json.ok === true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "776a1385-7c22-8955-7b12-d7b8d101948a",
+              "name": "task",
+              "value": "={{ $('Task').first().json.task }}",
+              "type": "string"
+            },
+            {
+              "id": "6e470dcf-e2ec-408a-7a43-9af09966425a",
+              "name": "json",
+              "value": "={{ $json.json ?? null }}",
+              "type": "object"
+            },
+            {
+              "id": "8a8832ca-ea12-4c1d-cecc-db3b1936328b",
+              "name": "model",
+              "value": "={{ $json.model ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "e75c59eb-3de9-13be-d94e-f01e5018ebda",
+              "name": "reason",
+              "value": "={{ $json.ok ? null : ($json.reason ?? \"down\") }}",
+              "type": "string"
+            },
+            {
+              "id": "df389dee-af1d-1675-a43d-961f8f114ee5",
+              "name": "detail",
+              "value": "={{ $json.detail ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "2c87b838-8145-0baf-ed9b-743d71abf011",
+              "name": "usage",
+              "value": "={{ $json.usage ?? null }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "42b9683e-c4bd-0555-c243-1598e53560bb",
+      "position": [
+        14300,
+        220
+      ]
+    },
+    {
+      "name": "Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO master_log (job_id, task, result, usage) VALUES ($1, $2, $3::jsonb, $4::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [$('Task').first().json.job_id, $('Task').first().json.task, JSON.stringify($json.ok ? $json.json : { skipped: $json.reason, detail: $json.detail }), $json.usage ? JSON.stringify($json.usage) : null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "73c923e3-1a18-c55e-d957-7ccc8c74cb9d",
+      "position": [
+        14560,
+        220
+      ]
+    },
+    {
+      "name": "Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "40a22a9b-dbf6-7e4e-4e2b-645607c67540",
+              "name": "ok",
+              "value": "={{ $('Answer').first().json.ok }}",
+              "type": "boolean"
+            },
+            {
+              "id": "6efe0ae3-59cb-7aea-a1dd-abcdceb24490",
+              "name": "json",
+              "value": "={{ $('Answer').first().json.json }}",
+              "type": "object"
+            },
+            {
+              "id": "2966f0a8-8eeb-2559-1eaa-1af7d46bb0f9",
+              "name": "model",
+              "value": "={{ $('Answer').first().json.model }}",
+              "type": "string"
+            },
+            {
+              "id": "8653e8a8-59a8-7632-642a-1102311db5ea",
+              "name": "reason",
+              "value": "={{ $('Answer').first().json.reason }}",
+              "type": "string"
+            },
+            {
+              "id": "6f354cb2-3460-ac3c-c2c1-ac2c2fc47c58",
+              "name": "usage",
+              "value": "={{ $('Answer').first().json.usage }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6898901b-d358-f201-af51-8e2513940c0a",
+      "position": [
+        14820,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task": {
+      "main": [
+        [
+          {
+            "node": "Known task?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known task?": {
+      "main": [
+        [
+          {
+            "node": "Read prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Bad task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read prompt": {
+      "main": [
+        [
+          {
+            "node": "Prompt text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Map error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt text": {
+      "main": [
+        [
+          {
+            "node": "Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Path": {
+      "main": [
+        [
+          {
+            "node": "Read image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Judge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Judge": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Judge",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser Judge": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Judge",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Judge image": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Judge image",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser Judge image": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Judge image",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read image": {
+      "main": [
+        [
+          {
+            "node": "Judge image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Judge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Map error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge": {
+      "main": [
+        [
+          {
+            "node": "Check verdict",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Map error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge image": {
+      "main": [
+        [
+          {
+            "node": "Check verdict",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Map error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build request": {
+      "main": [
+        [
+          {
+            "node": "Messages API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Messages API": {
+      "main": [
+        [
+          {
+            "node": "Check response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check response": {
+      "main": [
+        [
+          {
+            "node": "Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done?": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait retry": {
+      "main": [
+        [
+          {
+            "node": "Next call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next call": {
+      "main": [
+        [
+          {
+            "node": "Messages API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check verdict": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map error": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bad task": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer": {
+      "main": [
+        [
+          {
+            "node": "Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "The Master as judge (PLAN §5.1). Input {task: review_script|review_video|diagnose_grade|diagnose_research, job_id?, context, image_path?}. Output {ok, json, model} or {ok:false, reason: limit|auth|invalid|timeout|down}. Never throws."
+}

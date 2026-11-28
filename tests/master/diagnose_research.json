@@ -1,0 +1,4 @@
+{
+  "task": "diagnose_research",
+  "context": "{\"agents\": {\"checker\": {\"job\": \"fact-check a 120-word script against sources, JSON output\", \"chain\": \"groq,gemini,ollama\"}}, \"models\": {\"gemini\": \"gemini-2.5-flash\", \"groq\": \"llama-3.3-70b-versatile\", \"ollama\": \"qwen3:8b\"}, \"hardware\": \"16 GB Mac, Ollama model <= 10 GB\", \"allowed\": [\"ollama\", \"gemini free tier\", \"groq free tier\"], \"last_week\": null}"
+}

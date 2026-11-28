@@ -35,6 +35,7 @@ CREATE TABLE jobs (
   check_result     jsonb,
   plan             jsonb,
   notes            text,                         -- owner notes waiting to be applied
+  edit_then        text,                         -- after video_editing: 'approve' (approved with changes) or 'review'
   review_deadline  timestamptz,                  -- auto-approve / drop time (also the form's wait limit)
   review_sent_at   timestamptz,                  -- set by sc.review when its form mail went out
   review_url       text,                         -- the open form ($execution.resumeFormUrl)

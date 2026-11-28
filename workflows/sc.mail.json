@@ -1,0 +1,353 @@
+{
+  "id": "sca84aad68e9b1c7",
+  "name": "sc.mail",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "job_id",
+              "type": "number"
+            },
+            {
+              "name": "subject",
+              "type": "any"
+            },
+            {
+              "name": "html",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "f9cc7d0a-a690-cfd3-47fd-8c4bec91df67",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Job mail?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "aa961999-adbd-8b60-0645-96ba8538245b",
+              "leftValue": "={{ $json.job_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "e20008bf-f236-6c92-213a-f56f3228fd5b",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Load outbox",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id AS job_id, outbox->>'subject' AS subject, outbox->>'html' AS html FROM jobs WHERE id = $1 AND outbox IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [$json.job_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "c13ccd25-8838-635c-dba2-5eb19de395d8",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Outbox set?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e8d5f2f5-686a-b657-bb12-ca0bbbeec986",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "5a0d7356-0b49-0546-50bd-042eb1fc6cf4",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Check and clean",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node validates a single address or strips control characters from a header.\nconst to = $env.OWNER_EMAIL ?? '';\nif (!/^[^@,;\\s]+@[^@,;\\s.]+(\\.[^@,;\\s.]+)+$/.test(to)) throw new Error('OWNER_EMAIL is empty or not exactly one address; nothing sent');\nconst i = $input.first().json;\nconst subject = String(i.subject ?? '').replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]/g, ' ').slice(0, 200).trim();\nif (!subject || !i.html) throw new Error('sc.mail needs a subject and html');\nreturn [{ json: { job_id: i.job_id ?? null, subject, html: String(i.html) } }];"
+      },
+      "id": "70672ad1-34c3-bfe4-ef3b-7617abd82bb3",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Send",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "parameters": {
+        "sendTo": "={{ $env.OWNER_EMAIL }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "scCredGmailBot01",
+          "name": "Gmail Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 15000,
+      "onError": "continueErrorOutput",
+      "webhookId": "de70a9c3-d2b2-6430-6187-75e41ce0c825",
+      "id": "7845f66e-af9b-475c-20c6-7e03e5922110",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Send failed",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "parameters": {
+        "errorMessage": "={{ 'Gmail send failed: ' + ($json.error?.message ?? $json.error ?? 'unknown') }}"
+      },
+      "id": "425e6856-933c-9697-3fdc-be89717ae582",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Clear outbox?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "158cd32e-37cb-121d-0d2e-5dfddb243fab",
+              "leftValue": "={{ $('Check and clean').first().json.job_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "b5048aa8-85a2-dbcb-32dd-2db99146b96e",
+      "position": [
+        1560,
+        220
+      ]
+    },
+    {
+      "name": "Clear outbox",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET outbox = NULL, gmail_thread_id = $2, gmail_message_id = $3, updated_at = now() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Check and clean').first().json.job_id, $json.threadId, $json.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "49099083-8a76-3812-b314-66bbe2fd82c3",
+      "position": [
+        1820,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Job mail?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job mail?": {
+      "main": [
+        [
+          {
+            "node": "Load outbox",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check and clean",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load outbox": {
+      "main": [
+        [
+          {
+            "node": "Outbox set?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbox set?": {
+      "main": [
+        [
+          {
+            "node": "Check and clean",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check and clean": {
+      "main": [
+        [
+          {
+            "node": "Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send": {
+      "main": [
+        [
+          {
+            "node": "Clear outbox?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear outbox?": {
+      "main": [
+        [
+          {
+            "node": "Clear outbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "The only plain Gmail Send node. Input {job_id} (sends that job's outbox) or {subject, html}. Recipient is always $env.OWNER_EMAIL (PLAN §1, §10.6)."
+}

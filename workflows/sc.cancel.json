@@ -1,0 +1,234 @@
+{
+  "id": "sc7142e3dc1d7ff2",
+  "name": "sc.cancel",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Cancel form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "parameters": {
+        "authentication": "basicAuth",
+        "formTitle": "Cancel a ShortCircuit video",
+        "formDescription": "This drops the job and frees its slot. In manual mode, also delete it in YouTube Studio if you already scheduled it.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Job",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "SC-0042"
+            },
+            {
+              "fieldLabel": "Confirm",
+              "fieldType": "checkbox",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Yes, cancel this job"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "path": "sc-cancel",
+          "appendAttribution": false,
+          "buttonLabel": "Cancel it"
+        }
+      },
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "scCredCancelForm",
+          "name": "SC Cancel Form"
+        }
+      },
+      "webhookId": "c64f87bc-1ab2-5668-5033-0f8af3e786ce",
+      "id": "2db6792a-4ce8-2b6b-8ce2-ea90d4f5c068",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Job id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node checks a form value against a pattern.\nconst raw = String($input.first().json.Job ?? '').trim();\nconst m = /^SC-([0-9]{4,})$/.exec(raw);\nreturn [{ json: { ok: !!m, id: m ? Number(m[1]) : null, job: raw.slice(0, 20) } }];"
+      },
+      "id": "eb25ec6b-1a2d-4ed7-2abb-9c36765137c4",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f9c01bc2-2ada-936d-9c81-c322250a157f",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "771c554c-4aec-7d22-26fe-0db94bfe22ac",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Cancel",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH u AS (\n  UPDATE jobs SET status = 'cancelled', slot_at = NULL, slot_date = NULL, review_url = NULL, updated_at = now()\n  WHERE id = $1 AND status IN ('new', 'script_review', 'needs_human', 'revising', 'script_approved', 'video_review', 'video_editing', 'approved', 'awaiting_upload', 'scheduled', 'triage') RETURNING id),\nins AS (\n  INSERT INTO reviews (execution_id, job_id, kind, decision)\n  SELECT $2, $1, 'cancel', 'cancel' WHERE EXISTS (SELECT 1 FROM u) ON CONFLICT DO NOTHING)\nSELECT (SELECT count(*) FROM u)::int AS cancelled, (SELECT status FROM jobs WHERE id = $1) AS status;",
+        "options": {
+          "queryReplacement": "={{ [$json.id, $execution.id] }}",
+          "queryBatching": "transaction"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "ef262196-bc3e-ec81-529f-fc78e39bde61",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Done",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "={{ $json.cancelled ? $('Job id').first().json.job + ' cancelled' : 'Nothing changed' }}",
+        "completionMessage": "={{ $json.cancelled ? 'The job is dropped and its day is free again.' : $('Job id').first().json.job + ' is ' + ($json.status ?? 'not a known job') + '; nothing changed.' }}",
+        "options": {}
+      },
+      "webhookId": "7ea89511-4597-07b8-a397-8a10ce03e5ff",
+      "id": "31bb620b-db30-1653-15e2-bda5ecf773a9",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Bad id",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Not a job id",
+        "completionMessage": "={{ \"Write the job id as shown in the mail subject, e.g. SC-0042.\" }}",
+        "options": {}
+      },
+      "webhookId": "9d03b373-96a3-ea11-10fe-df391d639275",
+      "id": "2eb959cf-2ec4-4d53-cd5a-c19d1cdffee9",
+      "position": [
+        780,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Cancel form": {
+      "main": [
+        [
+          {
+            "node": "Job id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job id": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Cancel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Bad id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Form (Basic Auth, /form/sc-cancel?Job=SC-0042): pulls a job at any point. Frees its slot; sc.publish deletes an uploaded video (PLAN §8, §10.6)."
+}

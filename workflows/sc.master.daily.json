@@ -1,0 +1,1043 @@
+{
+  "id": "sc531aca33e5d29d",
+  "name": "sc.master.daily",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Daily 21:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a139e41a-b753-6422-2172-83a08d186c4c",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Snapshot",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT jsonb_build_object(\n  'now', now(),\n  'jobs_per_status', (SELECT coalesce(jsonb_object_agg(status, c), '{}') FROM (SELECT status, count(*) c FROM jobs WHERE status NOT IN ('done', 'failed', 'cancelled', 'rejected') OR updated_at > now() - interval '24 hours' GROUP BY status) s),\n  'errors_24h', (SELECT coalesce(jsonb_agg(e), '[]') FROM (SELECT 'SC-' || lpad(id::text, 4, '0') AS job, status, attempts, left(last_error, 300) AS error FROM jobs WHERE last_error IS NOT NULL AND updated_at > now() - interval '24 hours' ORDER BY updated_at DESC LIMIT 20) e),\n  'buffer', (SELECT count(*) FROM jobs WHERE slot_at > now() AND status IN ('video_review', 'video_editing', 'approved', 'awaiting_upload', 'scheduled')),\n  'empty_slot_days', (SELECT coalesce(jsonb_agg(to_char(d, 'YYYY-MM-DD')), '[]') FROM generate_series((now() AT TIME ZONE $1)::date + 1, (now() AT TIME ZONE $1)::date + 3, interval '1 day') d WHERE d::date NOT IN (SELECT slot_date FROM jobs WHERE slot_date IS NOT NULL)),\n  'schedule', (SELECT coalesce(jsonb_object_agg(dow, to_char(publish_time, 'HH24:MI')), '{}') FROM schedule),\n  'schedule_changed_today', EXISTS (SELECT 1 FROM master_log WHERE task = 'schedule' AND created_at > now() - interval '24 hours' AND result->>'changed' = 'true'),\n  'config_changed_today', EXISTS (SELECT 1 FROM master_log WHERE task = 'config' AND created_at > now() - interval '24 hours'),\n  'master_log_today', (SELECT coalesce(jsonb_agg(jsonb_build_object('job', CASE WHEN job_id IS NULL THEN NULL ELSE 'SC-' || lpad(job_id::text, 4, '0') END, 'task', task, 'result', result) ORDER BY id), '[]') FROM (SELECT * FROM master_log WHERE created_at > now() - interval '24 hours' AND task <> 'daily' ORDER BY id DESC LIMIT 40) m)\n) AS snapshot;",
+        "options": {
+          "queryReplacement": "={{ [$env.TZ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "d5686fe3-cc01-4d66-2823-efede6b7f48a",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Crew stats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH d AS (SELECT LEAST(30, GREATEST(1, coalesce($1, 7))) AS days),\nj AS (SELECT * FROM jobs, d WHERE created_at > now() - make_interval(days => d.days) OR updated_at > now() - make_interval(days => d.days))\nSELECT jsonb_build_object(\n  'days', (SELECT days FROM d),\n  'jobs_per_status', (SELECT coalesce(jsonb_object_agg(status, c), '{}') FROM (SELECT status, count(*) c FROM j GROUP BY status) s),\n  'provider_use', (SELECT coalesce(jsonb_object_agg(agent, p), '{}') FROM (SELECT agent, jsonb_object_agg(provider, c) p FROM (SELECT k AS agent, v AS provider, count(*) c FROM j, jsonb_each_text(j.providers) e(k, v) GROUP BY 1, 2) x GROUP BY agent) y),\n  'checker_flag_rate', (SELECT round(avg(CASE WHEN (check_result->>'pass')::boolean THEN 0 ELSE 1 END)::numeric, 2) FROM j WHERE check_result IS NOT NULL),\n  'needs_human', (SELECT count(*) FROM j WHERE status = 'needs_human'),\n  'master', (SELECT coalesce(jsonb_object_agg(task, c), '{}') FROM (SELECT task || CASE WHEN result ? 'skipped' THEN ':skipped' WHEN result->>'verdict' = 'redo' THEN ':redo' ELSE '' END AS task, count(*) c FROM master_log, d WHERE created_at > now() - make_interval(days => d.days) GROUP BY 1) m),\n  'owner_decisions', (SELECT coalesce(jsonb_object_agg(decision, c), '{}') FROM (SELECT kind || ':' || decision AS decision, count(*) c FROM reviews, d WHERE answered_at > now() - make_interval(days => d.days) GROUP BY 1) r),\n  'errors', (SELECT coalesce(jsonb_agg(e), '[]') FROM (SELECT 'SC-' || lpad(id::text, 4, '0') AS job, status, left(last_error, 300) AS error FROM j WHERE last_error IS NOT NULL ORDER BY updated_at DESC LIMIT 20) e),\n  'views_48h', (SELECT coalesce(jsonb_agg(jsonb_build_object('job', 'SC-' || lpad(m.job_id::text, 4, '0'), 'views', m.views)), '[]') FROM metrics m, d WHERE m.age_h = 48 AND m.taken_at > now() - make_interval(days => d.days))\n) AS result;",
+        "options": {
+          "queryReplacement": "={{ [1] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "3b000263-cca6-32b0-fc17-241021be0d1a",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Read prompt",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/prompts/master_daily.md",
+        "options": {}
+      },
+      "id": "a02c6cda-0d73-26a1-306c-0580d9e87c86",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Prompt text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "text",
+        "destinationKey": "prompt",
+        "options": {}
+      },
+      "id": "50123f51-0b41-a50d-c8ae-1f8e9f07e6ca",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Master",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'Check the crew and write today\\'s brief.\\n' + '<context>\\n' + String(JSON.stringify({ ...$('Snapshot').first().json.snapshot, agent_stats_24h: $('Crew stats').first().json.result }) ?? '').replace(/<\\/?context\\b/gi, '[tag]') + '\\n</context>' }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "={{ $json.prompt }}",
+          "maxIterations": 10,
+          "returnIntermediateSteps": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "0b8ba7ff-6666-e14c-e985-7cb6e8cc606c",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Claude",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MASTER_MODEL }}"
+        },
+        "options": {
+          "maxTokensToSample": 16000,
+          "thinkingMode": "adaptive",
+          "effort": "={{ $env.MASTER_EFFORT || \"medium\" }}"
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "scCredAnthropic1",
+          "name": "Anthropic"
+        }
+      },
+      "id": "9dfc1e29-e5f0-a0f9-4971-f334eadcbb76",
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "name": "Answer format",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"healthy\": {\n      \"type\": \"boolean\"\n    },\n    \"findings\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"agent\": {\n            \"type\": \"string\"\n          },\n          \"text\": {\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"agent\",\n          \"text\"\n        ]\n      }\n    },\n    \"suggestions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"brief\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"healthy\",\n    \"findings\",\n    \"suggestions\",\n    \"brief\"\n  ]\n}"
+      },
+      "id": "8cc05295-8b2d-47dd-60e6-234b72a46602",
+      "position": [
+        0,
+        440
+      ]
+    },
+    {
+      "name": "get_job",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "parameters": {
+        "description": "Read one job: status, last_error, providers, check result, Master log. Input: job id like SC-0042. Read only.",
+        "workflowId": {
+          "__rl": true,
+          "value": "scab3101bb050993",
+          "mode": "list",
+          "cachedResultName": "sc.tool.get_job"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "={{ $fromAI('job', 'The job id, e.g. SC-0042', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "dd5116c0-5819-b42b-76e8-d4c3a5016356",
+      "position": [
+        0,
+        660
+      ]
+    },
+    {
+      "name": "crew_stats",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "parameters": {
+        "description": "Read per-agent stats for the last N days (provider use, Checker flag rate, Master reviews, owner decisions, recent errors, 48 h views). Read only.",
+        "workflowId": {
+          "__rl": true,
+          "value": "sc93c433c491bebb",
+          "mode": "list",
+          "cachedResultName": "sc.tool.crew_stats"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "days": "={{ $fromAI('days', 'How many days back, 1-30', 'number') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "days",
+              "displayName": "days",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "2831a817-6f93-fbcf-076d-eebbfb594c96",
+      "position": [
+        0,
+        880
+      ]
+    },
+    {
+      "name": "list_stuck",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "parameters": {
+        "description": "List jobs that have been in an active state for more than 24 h (not triage, not failed). Read only.",
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2b2c8bdccc842a",
+          "mode": "list",
+          "cachedResultName": "sc.tool.list_stuck"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "note": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "8fcaf5f4-db94-7212-e4f7-466ec26fb3ca",
+      "position": [
+        0,
+        1100
+      ]
+    },
+    {
+      "name": "retry_job",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "parameters": {
+        "description": "Try the failed step of the job again (attempts reset; a triage job goes back to the state it failed in). Returns \"done: …\" or \"refused: <reason>\".",
+        "workflowId": {
+          "__rl": true,
+          "value": "sc630f9c901216dc",
+          "mode": "list",
+          "cachedResultName": "sc.tool.retry_job"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "={{ $fromAI('job', 'The job id from list_stuck, e.g. SC-0042', 'string') }}",
+            "mode": "daily",
+            "claimed_id": "0",
+            "text": "={{ $fromAI('reason', 'Why', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mode",
+              "displayName": "mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "claimed_id",
+              "displayName": "claimed_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "f241e914-a8ec-da33-bb62-224ce163c8be",
+      "position": [
+        0,
+        1320
+      ]
+    },
+    {
+      "name": "reject_job",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "parameters": {
+        "description": "Drop the job so it is never published. The owner is asked first by mail and may decline (then leave the job). Returns \"done: …\", \"refused: <reason>\", or a declined answer.",
+        "workflowId": {
+          "__rl": true,
+          "value": "scd37e286d5c05c0",
+          "mode": "list",
+          "cachedResultName": "sc.tool.reject_job"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "={{ $fromAI('job', 'The job id from list_stuck, e.g. SC-0042', 'string') }}",
+            "mode": "daily",
+            "claimed_id": "0",
+            "text": "={{ $fromAI('reason', 'Why', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mode",
+              "displayName": "mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "claimed_id",
+              "displayName": "claimed_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "fbe51985-7ce7-ea56-333f-a4f936e2c7d2",
+      "position": [
+        0,
+        1540
+      ]
+    },
+    {
+      "name": "Owner approves reject",
+      "type": "n8n-nodes-base.gmailHitlTool",
+      "typeVersion": 2.1,
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "={{ $env.OWNER_EMAIL }}",
+        "subject": "={{ 'ShortCircuit Master asks: reject ' + String($tool.parameters.job ?? '') + '?' }}",
+        "message": "={{ ('The Master wants to drop this job so it is never published. Its reason: ' + String($tool.parameters.text ?? '')).replace(/[<>&]/g, ' ').slice(0, 1500) + ' — No answer within 1 hour counts as Decline.' }}",
+        "responseType": "approval",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Approve",
+            "disapproveLabel": "Decline"
+          }
+        },
+        "options": {
+          "appendAttribution": false,
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 1,
+              "resumeUnit": "hours"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "scCredGmailBot01",
+          "name": "Gmail Bot"
+        }
+      },
+      "webhookId": "5a5d05e8-9986-6bc4-1850-c3e6b1d72264",
+      "id": "8d36dc85-95cb-333e-f1a7-1ef9143ed071",
+      "position": [
+        1240,
+        180
+      ]
+    },
+    {
+      "name": "Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node decides whether today needs a brief and HTML-escapes the Master's text.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst r = $input.first().json; const o = r.output ?? {}; const s = $('Snapshot').first().json.snapshot;\nconst steps = (r.intermediateSteps ?? []).map((x) => ({ tool: x.action?.tool, input: x.action?.toolInput, result: String(typeof x.observation === 'string' ? x.observation : JSON.stringify(x.observation)).slice(0, 300) }));\nconst acted = steps.some((x) => ['retry_job', 'reject_job'].includes(x.tool) && /done:/.test(x.result));\nconst actionsToday = (s.master_log_today ?? []).filter((m) => String(m.task).startsWith('tool:') || m.task === 'triage' || m.task === 'late_publish');\nconst send = acted || actionsToday.length > 0 || (o.suggestions ?? []).length > 0 || (o.findings ?? []).length > 0 || (s.empty_slot_days ?? []).length > 0 || s.schedule_changed_today || s.config_changed_today;\nconst li = (a) => a.length ? '<ul>' + a.map((x) => '<li>' + x + '</li>').join('') + '</ul>' : '<p>None.</p>';\nconst html = page('Master brief', '<p style=\"white-space:pre-wrap\">' + esc(o.brief) + '</p>'\n  + '<h3>Findings</h3>' + li((o.findings ?? []).map((f) => '<b>' + esc(f.agent) + '</b>: ' + esc(f.text)))\n  + '<h3>Suggestions (you decide)</h3>' + li((o.suggestions ?? []).map(esc))\n  + ((s.empty_slot_days ?? []).length ? '<h3>Days with no Short</h3>' + li(s.empty_slot_days.map(esc)) : '')\n  + '<h3>Master actions in the last 24 h</h3>' + li([...actionsToday.map((m) => esc((m.job ?? '') + ' ' + m.task + ': ' + JSON.stringify(m.result).slice(0, 300))), ...steps.filter((x) => !['get_job', 'crew_stats', 'list_stuck'].includes(x.tool)).map((x) => esc(x.tool + ' ' + JSON.stringify(x.input) + ' → ' + x.result))]));\nconst date = new Date().toLocaleDateString('en-CA', { timeZone: $env.TZ });\nreturn [{ json: { send, result: { ...o, tools: steps }, subject: 'ShortCircuit Master brief — ' + date, html } }];"
+      },
+      "id": "14f90bf8-2735-8d81-4648-525d086469dc",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO master_log (job_id, task, result, usage) VALUES ($1, $2, $3::jsonb, $4::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [null, 'daily', JSON.stringify($json.result), null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "ae2bb551-27f6-5553-77c8-6c3a44d82655",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "Send brief?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1297c825-0f08-ac08-d789-e169a08c3972",
+              "leftValue": "={{ $('Brief').first().json.send }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "1ccb9c41-2754-19ec-ec78-18629852f1c0",
+      "position": [
+        2340,
+        0
+      ]
+    },
+    {
+      "name": "Mail brief",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sca84aad68e9b1c7",
+          "mode": "list",
+          "cachedResultName": "sc.mail"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "subject": "={{ $('Brief').first().json.subject }}",
+            "html": "={{ $('Brief').first().json.html }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "html",
+              "displayName": "html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "5d84fa49-0a34-824f-ee1c-70071c9586e7",
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "name": "Agent answered?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5a5ac884-9eb3-d188-4683-06b54e576813",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "f4b455f9-8996-dc05-1ee8-5288d05a6a61",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Log down",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO master_log (job_id, task, result, usage) VALUES ($1, $2, $3::jsonb, $4::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [null, 'daily', JSON.stringify({ skipped: \"down\", detail: String($json.error?.message ?? $json.error ?? \"error\").slice(0, 500) }), null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "278aa6ae-13b4-74ed-7d94-37b698740bb6",
+      "position": [
+        1820,
+        220
+      ]
+    },
+    {
+      "name": "Master worked lately?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT EXISTS (SELECT 1 FROM master_log WHERE created_at > now() - interval '24 hours' AND task IN ('review_script', 'review_video', 'triage', 'daily', 'diagnose_grade', 'diagnose_research') AND NOT (result ? 'skipped')) AS ok;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "e7df3f3e-d794-3859-380f-38b008bee6e0",
+      "position": [
+        2080,
+        220
+      ]
+    },
+    {
+      "name": "Down 24 h?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ee158004-c92e-fbf0-408c-dcc724a24b3b",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "35458637-1b8b-fb8c-5714-e36faadbcce3",
+      "position": [
+        2340,
+        220
+      ]
+    },
+    {
+      "name": "Alert down",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ 'master_down' }}",
+            "subject": "={{ 'The Master has not worked for 24 h' }}",
+            "text": "={{ 'No Master call succeeded in the last 24 hours (API outage, spend limit or a revoked key). Reviews are skipped and triage jobs end as failed after 6 h until it is back. Check the Anthropic credential and the Console usage page.' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "325eccea-6f96-134f-ac6a-34f819e6e1ce",
+      "position": [
+        2600,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Claude": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Master",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer format": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Master",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_job": {
+      "ai_tool": [
+        [
+          {
+            "node": "Master",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "crew_stats": {
+      "ai_tool": [
+        [
+          {
+            "node": "Master",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "list_stuck": {
+      "ai_tool": [
+        [
+          {
+            "node": "Master",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "retry_job": {
+      "ai_tool": [
+        [
+          {
+            "node": "Master",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "reject_job": {
+      "ai_tool": [
+        [
+          {
+            "node": "Owner approves reject",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Owner approves reject": {
+      "ai_tool": [
+        [
+          {
+            "node": "Master",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 21:00": {
+      "main": [
+        [
+          {
+            "node": "Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Crew stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crew stats": {
+      "main": [
+        [
+          {
+            "node": "Read prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read prompt": {
+      "main": [
+        [
+          {
+            "node": "Prompt text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt text": {
+      "main": [
+        [
+          {
+            "node": "Master",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Master": {
+      "main": [
+        [
+          {
+            "node": "Agent answered?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent answered?": {
+      "main": [
+        [
+          {
+            "node": "Brief",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief": {
+      "main": [
+        [
+          {
+            "node": "Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log": {
+      "main": [
+        [
+          {
+            "node": "Send brief?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send brief?": {
+      "main": [
+        [
+          {
+            "node": "Mail brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log down": {
+      "main": [
+        [
+          {
+            "node": "Master worked lately?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Master worked lately?": {
+      "main": [
+        [
+          {
+            "node": "Down 24 h?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Down 24 h?": {
+      "main": [
+        [
+          {
+            "node": "Alert down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Daily 21:00: crew snapshot → Master AI Agent (get_job, crew_stats, list_stuck, retry_job, reject_job; action tools only on jobs stuck > 24 h) → master_log → the Master brief, only on days with something to say. Alerts master_down after 24 h without a working Master run (PLAN §4.8, §10.6)."
+}

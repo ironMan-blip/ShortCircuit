@@ -8,3 +8,6 @@ backups/
 .DS_Store
 __pycache__/
 .pytest_cache/
+
+# workflow generator cache (node type dumps from the n8n image)
+scripts/wfgen/.cache/

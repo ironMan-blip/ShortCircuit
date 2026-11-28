@@ -1,0 +1,265 @@
+{
+  "id": "sc427eb4a7743101",
+  "name": "sc.tool.fail_job",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "job",
+              "type": "any"
+            },
+            {
+              "name": "mode",
+              "type": "any"
+            },
+            {
+              "name": "claimed_id",
+              "type": "any"
+            },
+            {
+              "name": "text",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "c8b8e9a8-c8bd-a099-da8b-aa773b0af55a",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Act",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH w AS (SELECT NULLIF(regexp_replace(coalesce($1, ''), '[^0-9]', '', 'g'), '')::int AS want),\ng AS (SELECT w.want, j.*, CASE\n    WHEN j.id IS NULL THEN 'no such job'\n    WHEN j.status IN ('failed', 'done', 'cancelled', 'rejected') THEN 'job is ' || j.status\n    WHEN j.master_rounds >= 2 THEN 'master_rounds is ' || j.master_rounds\n    WHEN $2 = 'triage' AND (j.id <> $3::int OR j.status <> 'triage') THEN 'not the job in triage'\n    WHEN $2 = 'daily' AND NOT (j.status IN ('new', 'script_review', 'needs_human', 'revising', 'script_approved', 'video_review', 'video_editing', 'approved', 'awaiting_upload', 'scheduled') AND j.updated_at < now() - interval '24 hours') THEN 'not stuck for 24 h (see list_stuck)'\n    WHEN $2 NOT IN ('triage', 'daily') THEN 'unknown mode'\n  END AS refused\n  FROM w LEFT JOIN LATERAL (SELECT * FROM jobs WHERE id = w.want FOR UPDATE) j ON true),\nu AS (UPDATE jobs SET status = 'failed', slot_at = NULL, slot_date = NULL, last_error = left('Master: ' || $4, 2000), master_rounds = jobs.master_rounds + 1, attempts = 0, locked_at = NULL, updated_at = now() FROM g WHERE jobs.id = g.id AND g.refused IS NULL RETURNING jobs.id, jobs.status),\nl AS (INSERT INTO master_log (job_id, task, result)\n  SELECT g.id, 'tool:fail_job', jsonb_build_object('mode', $2, 'text', left($4, 2000), 'result',\n    CASE WHEN g.refused IS NULL THEN 'done' ELSE 'refused: ' || g.refused END) FROM g)\nSELECT CASE WHEN g.refused IS NOT NULL THEN 'refused: ' || g.refused\n  ELSE 'done: SC-' || lpad(g.id::text, 4, '0') || ' is ' || coalesce((SELECT status FROM u), '?') END AS result,\n  g.refused IS NULL AS acted, g.id, 'SC-' || lpad(g.id::text, 4, '0') AS job\nFROM g;",
+        "options": {
+          "queryReplacement": "={{ [String($json.job ?? \"\"), $json.mode, Number($json.claimed_id) || 0, String($json.text ?? \"\")] }}",
+          "queryBatching": "transaction"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "b052b34e-debd-53f7-1eb4-1e6d3d0b0971",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Acted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "efb1aee9-10b6-d1df-265b-ca183b14d0ec",
+              "leftValue": "={{ $json.acted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "9b64a959-6b25-3fef-72cc-09b8fd28aeea",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Alert",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc643afdb1cc3a79",
+          "mode": "list",
+          "cachedResultName": "sc.alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ 'job_failed:' + $json.job }}",
+            "subject": "={{ $json.job + ' failed (Master)' }}",
+            "text": "={{ $json.job + ' was ended by the Master. Diagnosis: ' + $('Input').first().json.text }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "key",
+              "displayName": "key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "9f768865-5e6e-560e-3223-cb3e144fbc87",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3126ce16-2311-b460-7f80-e3a8be4668bb",
+              "name": "result",
+              "value": "={{ $('Act').first().json.result }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d44889d5-19ec-687e-0876-9bf9a2eabffa",
+      "position": [
+        1040,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Act",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Act": {
+      "main": [
+        [
+          {
+            "node": "Acted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acted?": {
+      "main": [
+        [
+          {
+            "node": "Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "End the job: failed, slot cleared, ALERT to the owner with the diagnosis."
+}

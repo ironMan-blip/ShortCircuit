@@ -1,0 +1,92 @@
+{
+  "id": "scd37e286d5c05c0",
+  "name": "sc.tool.reject_job",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "job",
+              "type": "any"
+            },
+            {
+              "name": "mode",
+              "type": "any"
+            },
+            {
+              "name": "claimed_id",
+              "type": "any"
+            },
+            {
+              "name": "text",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "c0000b9e-f26c-9f2a-649f-4ae6a68994d2",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Act",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH w AS (SELECT NULLIF(regexp_replace(coalesce($1, ''), '[^0-9]', '', 'g'), '')::int AS want),\ng AS (SELECT w.want, j.*, CASE\n    WHEN j.id IS NULL THEN 'no such job'\n    WHEN j.status IN ('failed', 'done', 'cancelled', 'rejected') THEN 'job is ' || j.status\n    WHEN j.master_rounds >= 2 THEN 'master_rounds is ' || j.master_rounds\n    WHEN $2 = 'triage' AND (j.id <> $3::int OR j.status <> 'triage') THEN 'not the job in triage'\n    WHEN $2 = 'daily' AND NOT (j.status IN ('new', 'script_review', 'needs_human', 'revising', 'script_approved', 'video_review', 'video_editing', 'approved', 'awaiting_upload', 'scheduled') AND j.updated_at < now() - interval '24 hours') THEN 'not stuck for 24 h (see list_stuck)'\n    WHEN $2 NOT IN ('triage', 'daily') THEN 'unknown mode'\n  END AS refused\n  FROM w LEFT JOIN LATERAL (SELECT * FROM jobs WHERE id = w.want FOR UPDATE) j ON true),\nu AS (UPDATE jobs SET status = 'rejected', slot_at = NULL, slot_date = NULL, review_url = NULL, master_rounds = jobs.master_rounds + 1, attempts = 0, locked_at = NULL, updated_at = now() FROM g WHERE jobs.id = g.id AND g.refused IS NULL RETURNING jobs.id, jobs.status),\nl AS (INSERT INTO master_log (job_id, task, result)\n  SELECT g.id, 'tool:reject_job', jsonb_build_object('mode', $2, 'text', left($4, 2000), 'result',\n    CASE WHEN g.refused IS NULL THEN 'done' ELSE 'refused: ' || g.refused END) FROM g)\nSELECT CASE WHEN g.refused IS NOT NULL THEN 'refused: ' || g.refused\n  ELSE 'done: SC-' || lpad(g.id::text, 4, '0') || ' is ' || coalesce((SELECT status FROM u), '?') END AS result,\n  g.refused IS NULL AS acted, g.id, 'SC-' || lpad(g.id::text, 4, '0') AS job\nFROM g;",
+        "options": {
+          "queryReplacement": "={{ [String($json.job ?? \"\"), $json.mode, Number($json.claimed_id) || 0, String($json.text ?? \"\")] }}",
+          "queryBatching": "transaction"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "72dcee8c-fc7d-500d-d301-8a4ba80c92ab",
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Act",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Drop the job (rejected, slot cleared). Only reached after the owner approved it in the human review step."
+}

@@ -1,0 +1,1384 @@
+{
+  "id": "sce42818cf32ef6b",
+  "name": "sc.diagnose",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Sunday 05:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "ebe21343-e125-155b-c224-be4fbe4da5f6",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "53cb19bd-fa9a-f97a-5592-5c4f3634c6e8",
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "name": "Begin",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "5a3ac909-2fea-e8f3-727f-d0bf7d2fe277",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Fixtures scout",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "eval_scout",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "id": "848bd181-ebaf-a72f-1116-1ffcd69f2155",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Fixtures writer",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "eval_writer",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "id": "454d1826-dde0-2bfe-05c8-bd8e03420903",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Fixtures checker",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "eval_checker",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "id": "aaf02675-0a0a-877d-a3d6-22430e80f275",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Fixtures editor",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "eval_editor",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "id": "b0c33edc-d44b-2a13-2349-42033d795597",
+      "position": [
+        1300,
+        0
+      ]
+    },
+    {
+      "name": "Fixtures director",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "eval_director",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "id": "2b2571cf-f66c-4154-a23f-4609b1172e5e",
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "name": "Fixtures cutter",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "eval_cutter",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "id": "8f002ee4-7f32-c7d4-3f61-0faee344ac27",
+      "position": [
+        1820,
+        0
+      ]
+    },
+    {
+      "name": "Fixtures scheduler",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "eval_scheduler",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "id": "b53caa22-1ba8-428e-aa73-50176b44812b",
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "name": "Test items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node expands fixtures × each provider of the agent's chain.\nconst AGENTS = [\"scout\",\"writer\",\"checker\",\"editor\",\"director\",\"cutter\",\"scheduler\"]; const items = [];\nfor (const a of AGENTS) {\n  let rows = []; try { rows = $('Fixtures ' + a).all().map((i) => i.json).filter((r) => r.input); } catch {}\n  const chain = String($env['LLM_CHAIN_' + a.toUpperCase()] ?? '').split(',').map((x) => x.trim()).filter(Boolean);\n  for (const r of rows) for (const entry of (r.provider ? [r.provider] : chain)) items.push({ json: { agent: a, name: r.name, prompt: r.prompt || a, input: r.input, expect: r.expect, entry } });\n}\nreturn items.length ? items : [{ json: { agent: 'none', name: 'no fixtures', prompt: 'writer', input: '', expect: '{}', entry: 'none' } }];"
+      },
+      "id": "8c72f642-a103-be9c-ebbb-9259a2db17f6",
+      "position": [
+        2340,
+        0
+      ]
+    },
+    {
+      "name": "Next test",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "parameters": {
+        "options": {}
+      },
+      "id": "fcfcf17c-c239-63cf-a9cb-c519ba7cb06a",
+      "position": [
+        15080,
+        0
+      ]
+    },
+    {
+      "name": "Start",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "include": "all",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "78454101-5392-1695-a324-05193364572c",
+              "name": "t0",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1f40e606-dc07-f222-747b-8de4b2e9a675",
+      "position": [
+        15340,
+        0
+      ]
+    },
+    {
+      "name": "Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "={{ $json.agent }}",
+            "prompt": "={{ $json.prompt }}",
+            "user_content": "={{ $json.input }}",
+            "chain": "={{ $json.entry }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.3 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "0e0e044b-2a21-2e73-5eca-3dd7ceadb672",
+      "position": [
+        14560,
+        0
+      ]
+    },
+    {
+      "name": "Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// No node runs fixture expectations on a model's JSON.\nconst runChecks = (o, e) => {\n  const f = []; o = o ?? {};\n  const text = (x) => JSON.stringify(x ?? '').toLowerCase();\n  const words = (o.scenes ?? []).map((s) => s.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\n  if (e.words && (words < e.words[0] || words > e.words[1])) f.push('narration is ' + words + ' words, want ' + e.words.join('-'));\n  if (e.title_max && String(o.title ?? '').length > e.title_max) f.push('title longer than ' + e.title_max);\n  if (e.fact_count !== undefined) for (const s of o.scenes ?? []) for (const id of s.fact_ids ?? []) if (!(id >= 0 && id < e.fact_count)) f.push('scene ' + s.id + ' cites missing fact ' + id);\n  for (const a of e.absent ?? []) if (text({ t: o.title, h: o.hook, s: (o.scenes ?? []).map((s) => s.narration) }).includes(String(a).toLowerCase())) f.push('still says \"' + a + '\"');\n  for (const re of e.notes_mention ?? []) if (!new RegExp(re, 'i').test(String(o.editor_notes ?? ''))) f.push('editor_notes do not say it was refused');\n  if (e.pass !== undefined && o.pass !== e.pass) f.push('pass is ' + o.pass + ', want ' + e.pass);\n  for (const re of e.flags_mention ?? []) if (!new RegExp(re, 'i').test(JSON.stringify([o.unsupported_claims, o.policy_issues]))) f.push('the planted error is not flagged');\n  if (e.urls_from) { const u = o.source_urls ?? []; if (u.some((x) => !e.urls_from.includes(x))) f.push('a source url is not from the candidates'); if (u.length < (e.min_urls ?? 2)) f.push('fewer than ' + (e.min_urls ?? 2) + ' source urls'); }\n  for (const bad of e.not_urls ?? []) if ((o.source_urls ?? []).includes(bad) || o.primary_url === bad) f.push('picked ' + bad);\n  if ('screenshot_only' in e) for (const s of o.scenes ?? []) if (s.visual?.type === 'screenshot' && s.visual.url !== e.screenshot_only) f.push('scene ' + s.id + ' screenshots ' + s.visual.url);\n  if (e.no_repeat_stock) (o.scenes ?? []).forEach((s, i, a) => { if (i && s.visual?.type === 'stock' && a[i - 1].visual?.type === 'stock' && s.visual.query === a[i - 1].visual.query) f.push('two stock scenes in a row with the same query'); });\n  if (e.narration_from) (o.scenes ?? []).forEach((s) => { if (!e.narration_from.includes(s.narration)) f.push('scene ' + s.id + ' narration changed'); });\n  if (e.mood_in && !e.mood_in.includes(o.music_mood)) f.push('music_mood ' + o.music_mood + ' not allowed');\n  if (e.narration_change_empty === true && o.narration_change) f.push('narration_change should be empty');\n  if (e.narration_change_empty === false && !o.narration_change) f.push('the narration note was not passed on');\n  if (e.candidates) {\n    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];\n    if (!days.every((d) => e.candidates.includes(o.week?.[d]))) f.push('a time is not a candidate');\n    if (days.filter((d) => o.week?.[d] !== e.current[d]).length > (e.max_changes ?? 2) + (o.explore_day ? 1 : 0)) f.push('more than ' + e.max_changes + ' days changed');\n  }\n  return f;\n};\n\nconst t = $('Start').item.json; const r = $input.item.json;\nconst fails = r.ok ? runChecks(r.json, JSON.parse(t.expect || '{}')) : ['call failed: ' + String(r.error?.message ?? r.error ?? 'error').slice(0, 200)];\nreturn { json: { agent: t.agent, name: t.name, entry: t.entry, provider: t.entry.split(':')[0], model: r.model ?? t.entry, candidate: !!t.candidate, ok: !!r.ok, pass: fails.length === 0, fails, ms: Date.now() - t.t0, output: r.ok ? JSON.stringify(r.json).slice(0, 1500) : null } };"
+      },
+      "id": "3bafd706-5f6b-690a-bb47-cf3ae195d2fa",
+      "position": [
+        14820,
+        0
+      ]
+    },
+    {
+      "name": "Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "id": "30eb3ab6-79db-a980-6506-3456482bbd3c",
+      "position": [
+        15340,
+        220
+      ]
+    },
+    {
+      "name": "Week stats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT result FROM (SELECT jsonb_build_object(\n  'provider_use', (SELECT coalesce(jsonb_object_agg(agent, p), '{}') FROM (SELECT agent, jsonb_object_agg(provider, c) p FROM (SELECT k AS agent, v AS provider, count(*) c FROM jobs, jsonb_each_text(providers) e(k, v) WHERE updated_at > now() - interval '7 days' GROUP BY 1, 2) x GROUP BY agent) y),\n  'checker_flag_rate', (SELECT round(avg(CASE WHEN (check_result->>'pass')::boolean THEN 0 ELSE 1 END)::numeric, 2) FROM jobs WHERE check_result IS NOT NULL AND updated_at > now() - interval '7 days'),\n  'master_redo', (SELECT count(*) FROM master_log WHERE result->>'verdict' = 'redo' AND created_at > now() - interval '7 days'),\n  'owner_changes', (SELECT count(*) FROM reviews WHERE decision IN ('approve_changes', 'revise') AND answered_at > now() - interval '7 days'),\n  'errors', (SELECT count(*) FROM jobs WHERE last_error IS NOT NULL AND updated_at > now() - interval '7 days'),\n  'views_48h', (SELECT coalesce(jsonb_agg(views), '[]') FROM metrics WHERE age_h = 48 AND taken_at > now() - interval '7 days')\n) AS result) s) AS stats,\n  (SELECT coalesce(jsonb_object_agg(task, result), '{}') FROM (SELECT DISTINCT ON (task) task, result FROM master_log WHERE task LIKE 'diagnose_%' AND created_at < now() - interval '1 day' ORDER BY task, id DESC) l) AS last_week,\n  (SELECT coalesce(sum((usage->>'input_tokens')::numeric), 0) FROM master_log WHERE created_at > now() - interval '7 days') AS in_tokens,\n  (SELECT coalesce(sum((usage->>'output_tokens')::numeric), 0) FROM master_log WHERE created_at > now() - interval '7 days') AS out_tokens,\n  (SELECT coalesce(sum((usage->>'web_search_requests')::numeric), 0) FROM master_log WHERE created_at > now() - interval '7 days') AS searches,\n  (SELECT count(*) FROM master_log WHERE created_at > now() - interval '7 days' AND usage IS NOT NULL) AS usage_rows,\n  (SELECT count(*) FROM master_log WHERE created_at > now() - interval '7 days' AND task IN ('review_script', 'review_video', 'triage', 'daily')) AS master_calls;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "4cfb8bc7-3b4b-de61-4f26-9cf486b58d9f",
+      "position": [
+        14560,
+        220
+      ]
+    },
+    {
+      "name": "Research",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "scb470ce13b6711e",
+          "mode": "list",
+          "cachedResultName": "sc.ask_master"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "task": "diagnose_research",
+            "job_id": "",
+            "context": "={{ JSON.stringify({\n    agents: { scout: 'pick a topic from ~60 items and write a sourced brief; JSON; long context (source texts)', writer: 'write a 90-140 word script from a brief; JSON; best writing', checker: 'fact-check a script against sources; JSON; must be a different family from the writer', editor: 'apply owner notes to a script; JSON; never Gemini (owner notes are private)', director: 'turn a script into an edit plan; short JSON; local preferred', cutter: 'apply video notes to an edit plan; short JSON; never Gemini', scheduler: 'pick weekly publish times inside fixed rules; short JSON' },\n    chains: Object.fromEntries([\"scout\",\"writer\",\"checker\",\"editor\",\"director\",\"cutter\",\"scheduler\"].map((a) => [a, $env['LLM_CHAIN_' + a.toUpperCase()]])),\n    models: { gemini: $env.GEMINI_MODEL, groq: $env.GROQ_MODEL, ollama: $env.OLLAMA_MODEL },\n    hardware: '16 GB M4 Mac; an Ollama model must be at most about 10 GB',\n    allowed: ['ollama (local)', 'Google Gemini free tier', 'Groq free tier'],\n    last_week: $('Week stats').first().json.last_week.diagnose_research ?? null }) }}",
+            "image_path": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "task",
+              "displayName": "task",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "context",
+              "displayName": "context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "image_path",
+              "displayName": "image_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "f9f60ec9-ec18-ba7c-6fc8-4fcda78d7b3f",
+      "position": [
+        14820,
+        220
+      ]
+    },
+    {
+      "name": "Gemini models",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageSize",
+              "value": "1000"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi"
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "scCredGemini0001",
+          "name": "Gemini"
+        }
+      },
+      "id": "39cfef66-0a96-e294-3ea6-f530358db10e",
+      "position": [
+        15080,
+        220
+      ]
+    },
+    {
+      "name": "Groq models",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.groq.com/openai/v1/models",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi"
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "credentials": {
+        "groqApi": {
+          "id": "scCredGroq000001",
+          "name": "Groq"
+        }
+      },
+      "id": "c53472b7-149e-ce5d-4efc-b730dd3087a0",
+      "position": [
+        15340,
+        440
+      ]
+    },
+    {
+      "name": "Ollama models",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:11434/api/tags",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "id": "e3a87381-18c3-92af-ce66-b2909c7e5ddf",
+      "position": [
+        14560,
+        440
+      ]
+    },
+    {
+      "name": "Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node checks model ids from web text against the providers' own model lists.\nconst r = $('Research').first().json; const res = r.ok ? r.json : { in_use: [], candidates: [], other_options: [] };\nconst gem = new Set(($('Gemini models').first().json.models ?? []).map((m) => String(m.name).replace(/^models\\//, '')));\nconst grq = new Set(($('Groq models').first().json.data ?? []).map((m) => m.id));\nconst oll = new Set(($('Ollama models').first().json.models ?? []).map((m) => m.name));\nconst listed = { gemini: gem, groq: grq, ollama: oll };\nconst fx = Object.fromEntries([\"scout\",\"writer\",\"checker\",\"editor\",\"director\",\"cutter\",\"scheduler\"].map((a) => { let rows = []; try { rows = $('Fixtures ' + a).all().map((i) => i.json).filter((x) => x.input); } catch {} return [a, rows]; }));\nconst tried = [];\nfor (const c of res.candidates ?? []) {\n  const [p, ...rest] = c.model.split(':'); const id = rest.join(':');\n  if (p === 'gemini' && c.agents.some((a) => a === 'editor' || a === 'cutter')) c.agents = c.agents.filter((a) => a !== 'editor' && a !== 'cutter');\n  if (listed[p]?.has(id)) tried.push({ ...c, provider: p, id }); // an id the provider does not list is never called\n}\nconst items = tried.flatMap((c) => c.agents.flatMap((a) => (fx[a] ?? []).map((row) => ({ json: { agent: a, name: row.name, prompt: row.prompt || a, input: row.input, expect: row.expect, entry: c.provider + ':' + c.id, candidate: true } }))));\nreturn items.length ? items : [{ json: { none: true } }];"
+      },
+      "id": "fe7b4efc-c174-9065-f2fc-4deaa0fc7a4b",
+      "position": [
+        14820,
+        440
+      ]
+    },
+    {
+      "name": "Any candidate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1df39af-26ff-c996-cb4b-6096919cd65b",
+              "leftValue": "={{ $json.none }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "b43123e2-2bd9-116f-31af-25c48a8ee45a",
+      "position": [
+        15080,
+        440
+      ]
+    },
+    {
+      "name": "Next test cand",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "parameters": {
+        "options": {}
+      },
+      "id": "4274ce55-8132-9147-6bf2-654eec42436f",
+      "position": [
+        15340,
+        660
+      ]
+    },
+    {
+      "name": "Start cand",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "include": "all",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6dbe4208-fe69-ce5e-b7b5-187292933dd5",
+              "name": "t0",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "380ad3fd-8461-a393-33eb-6811d22d1451",
+      "position": [
+        14560,
+        660
+      ]
+    },
+    {
+      "name": "Run cand",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "={{ $json.agent }}",
+            "prompt": "={{ $json.prompt }}",
+            "user_content": "={{ $json.input }}",
+            "chain": "={{ $json.entry }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.3 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "15c32d39-5b33-63a9-4405-4e9cbdb9bfda",
+      "position": [
+        14820,
+        660
+      ]
+    },
+    {
+      "name": "Check cand",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// No node runs fixture expectations on a model's JSON.\nconst runChecks = (o, e) => {\n  const f = []; o = o ?? {};\n  const text = (x) => JSON.stringify(x ?? '').toLowerCase();\n  const words = (o.scenes ?? []).map((s) => s.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\n  if (e.words && (words < e.words[0] || words > e.words[1])) f.push('narration is ' + words + ' words, want ' + e.words.join('-'));\n  if (e.title_max && String(o.title ?? '').length > e.title_max) f.push('title longer than ' + e.title_max);\n  if (e.fact_count !== undefined) for (const s of o.scenes ?? []) for (const id of s.fact_ids ?? []) if (!(id >= 0 && id < e.fact_count)) f.push('scene ' + s.id + ' cites missing fact ' + id);\n  for (const a of e.absent ?? []) if (text({ t: o.title, h: o.hook, s: (o.scenes ?? []).map((s) => s.narration) }).includes(String(a).toLowerCase())) f.push('still says \"' + a + '\"');\n  for (const re of e.notes_mention ?? []) if (!new RegExp(re, 'i').test(String(o.editor_notes ?? ''))) f.push('editor_notes do not say it was refused');\n  if (e.pass !== undefined && o.pass !== e.pass) f.push('pass is ' + o.pass + ', want ' + e.pass);\n  for (const re of e.flags_mention ?? []) if (!new RegExp(re, 'i').test(JSON.stringify([o.unsupported_claims, o.policy_issues]))) f.push('the planted error is not flagged');\n  if (e.urls_from) { const u = o.source_urls ?? []; if (u.some((x) => !e.urls_from.includes(x))) f.push('a source url is not from the candidates'); if (u.length < (e.min_urls ?? 2)) f.push('fewer than ' + (e.min_urls ?? 2) + ' source urls'); }\n  for (const bad of e.not_urls ?? []) if ((o.source_urls ?? []).includes(bad) || o.primary_url === bad) f.push('picked ' + bad);\n  if ('screenshot_only' in e) for (const s of o.scenes ?? []) if (s.visual?.type === 'screenshot' && s.visual.url !== e.screenshot_only) f.push('scene ' + s.id + ' screenshots ' + s.visual.url);\n  if (e.no_repeat_stock) (o.scenes ?? []).forEach((s, i, a) => { if (i && s.visual?.type === 'stock' && a[i - 1].visual?.type === 'stock' && s.visual.query === a[i - 1].visual.query) f.push('two stock scenes in a row with the same query'); });\n  if (e.narration_from) (o.scenes ?? []).forEach((s) => { if (!e.narration_from.includes(s.narration)) f.push('scene ' + s.id + ' narration changed'); });\n  if (e.mood_in && !e.mood_in.includes(o.music_mood)) f.push('music_mood ' + o.music_mood + ' not allowed');\n  if (e.narration_change_empty === true && o.narration_change) f.push('narration_change should be empty');\n  if (e.narration_change_empty === false && !o.narration_change) f.push('the narration note was not passed on');\n  if (e.candidates) {\n    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];\n    if (!days.every((d) => e.candidates.includes(o.week?.[d]))) f.push('a time is not a candidate');\n    if (days.filter((d) => o.week?.[d] !== e.current[d]).length > (e.max_changes ?? 2) + (o.explore_day ? 1 : 0)) f.push('more than ' + e.max_changes + ' days changed');\n  }\n  return f;\n};\n\nconst t = $('Start cand').item.json; const r = $input.item.json;\nconst fails = r.ok ? runChecks(r.json, JSON.parse(t.expect || '{}')) : ['call failed: ' + String(r.error?.message ?? r.error ?? 'error').slice(0, 200)];\nreturn { json: { agent: t.agent, name: t.name, entry: t.entry, provider: t.entry.split(':')[0], model: r.model ?? t.entry, candidate: !!t.candidate, ok: !!r.ok, pass: fails.length === 0, fails, ms: Date.now() - t.t0, output: r.ok ? JSON.stringify(r.json).slice(0, 1500) : null } };"
+      },
+      "id": "f9456880-e4bc-c5f4-d960-fcf8e3af4822",
+      "position": [
+        15080,
+        660
+      ]
+    },
+    {
+      "name": "Candidate results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "id": "cd417fdf-0298-91af-0b5f-9483e50fbb91",
+      "position": [
+        14560,
+        880
+      ]
+    },
+    {
+      "name": "Tests done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "230ba375-147e-26af-c249-03902d2f9939",
+      "position": [
+        15340,
+        880
+      ]
+    },
+    {
+      "name": "Grade",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "scb470ce13b6711e",
+          "mode": "list",
+          "cachedResultName": "sc.ask_master"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "task": "diagnose_grade",
+            "job_id": "",
+            "context": "={{ JSON.stringify({ tests: $('Results').first().json.results.map(({ output, ...r }) => ({ ...r, output: (output ?? '').slice(0, 600) })),\n    candidate_tests: $('Candidate results').isExecuted ? $('Candidate results').first().json.results : [],\n    week_stats: $('Week stats').first().json.stats, last_week: $('Week stats').first().json.last_week.diagnose_grade ?? null }) }}",
+            "image_path": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "task",
+              "displayName": "task",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "context",
+              "displayName": "context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "image_path",
+              "displayName": "image_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "1ac9c233-a938-e310-53bb-0ee763cc37fb",
+      "position": [
+        15080,
+        880
+      ]
+    },
+    {
+      "name": "Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// No node runs the local-or-free check, prices the Master or builds the HTML report (PLAN §4.9 steps 6-7).\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst DIAG = [\"ai.google.dev\",\"groq.com\",\"console.groq.com\",\"ollama.com\",\"huggingface.co\",\"github.com\",\"lmarena.ai\",\"artificialanalysis.ai\"];\nconst AGENTS = [\"scout\",\"writer\",\"checker\",\"editor\",\"director\",\"cutter\",\"scheduler\"];\nconst okLink = (u) => { const x = okUrl(u); if (!x) return null; const h = hostOf(x); return DIAG.some((d) => h === d || h.endsWith('.' + d)) ? x : null; };\nconst link = (u, t) => okLink(u) ? '<a href=\"' + esc(okLink(u)) + '\">' + esc(t) + '</a>' : '';\nconst info = $('Research').first().json.ok ? $('Research').first().json.json : null;\nconst results = $('Results').first().json.results.filter((r) => r.agent !== 'none');\nconst candResults = $('Candidate results').isExecuted ? $('Candidate results').first().json.results.filter((r) => r.agent) : [];\nconst grade = $('Grade').first().json; const g = grade.ok ? grade.json : null;\nconst env = (a) => String($env['LLM_CHAIN_' + a.toUpperCase()] ?? '');\n// step 6: local or free, in code (the Master's word is input, not proof)\nconst freeOf = (m) => (info?.in_use ?? []).find((x) => x.model === m);\nconst used = [...new Set(AGENTS.flatMap((a) => env(a).split(',').map((e) => e.trim()).filter(Boolean).map((e) => e.includes(':') ? e : e + ':' + ($env[e.toUpperCase() + '_MODEL'] ?? ''))))];\nconst notFree = used.filter((m) => !m.startsWith('ollama:') && freeOf(m)?.free !== 'yes');\n// Master cost (Opus 5.5 list prices: $4 / $20 per million tokens, $10 per 1 000 searches; update if MASTER_MODEL changes)\nconst ws = $('Week stats').first().json;\nconst cost = (Number(ws.in_tokens) * 4 + Number(ws.out_tokens) * 20) / 1e6 + Number(ws.searches) * 0.01;\nconst costLine = Number(ws.usage_rows) ? '$' + cost.toFixed(2) + ' (' + ws.usage_rows + ' metered calls; chain reviews and agent runs: see the Console usage page)' : 'see the Console usage page (this n8n version returns no token counts)';\nconst per = AGENTS.map((a) => { const r = results.filter((x) => x.agent === a); const byP = {};\n  for (const x of r) { byP[x.provider] ??= [0, 0]; byP[x.provider][1]++; if (x.pass) byP[x.provider][0]++; }\n  const ga = g?.agents?.find((x) => x.agent === a);\n  return { a, r, byP, ga, ok: r.length && r.every((x) => x.pass) }; });\nconst healthy = per.filter((p) => p.ok && (!p.ga || p.ga.status === 'good')).length;\nconst first = (notFree.length ? '⚠ Not verified local or free: ' + notFree.join(', ') + '. ' : '')\n  + (healthy === AGENTS.length ? 'All ' + AGENTS.length + ' agents healthy' : (AGENTS.length - healthy) + ' of ' + AGENTS.length + ' agents need a look') + (notFree.length ? '' : ' · all workers local or free');\n// .env lines built by code from verified ids only\nconst better = (g?.candidates ?? []).filter((x) => x.better);\nconst tried = candResults.length ? [...new Set(candResults.map((r) => r.entry))] : [];\nconst lines = better.filter((b) => tried.includes(b.model) && candResults.filter((r) => r.entry === b.model && r.agent === b.agent).every((r) => r.pass))\n  .filter((b) => !((b.agent === 'editor' || b.agent === 'cutter') && b.model.startsWith('gemini:')))\n  .map((b) => 'LLM_CHAIN_' + b.agent.toUpperCase() + '=' + [b.model, ...env(b.agent).split(',').map((e) => e.trim()).filter((e) => e && e !== b.model)].join(','));\nconst td = (x) => '<td style=\"border:1px solid #ddd;padding:4px 8px;vertical-align:top\">' + x + '</td>';\nconst rows = per.map((p) => '<tr>' + td('<b>' + esc(p.a) + '</b>') + td(esc(p.ga?.status ?? (p.ok ? 'tests pass' : 'tests fail'))) + td(esc(p.ga?.score ?? '–'))\n  + td(Object.entries(p.byP).map(([k, v]) => esc(k + ' ' + v[0] + '/' + v[1])).join('<br>')) + td(esc(p.ga?.best_provider ?? '–'))\n  + td(env(p.a).split(',').map((e) => { const m = e.includes(':') ? e : e + ':' + ($env[e.toUpperCase() + '_MODEL'] ?? ''); const f = m.startsWith('ollama:') ? 'local' : (freeOf(m)?.free ?? 'unknown'); return esc(m + ': ' + f) + ' ' + link(freeOf(m)?.source_url, 'source'); }).join('<br>'))\n  + td(esc(p.r.filter((x) => !x.pass).map((x) => x.name + ' @' + x.provider + ': ' + x.fails.join('; ')).join(' | ').slice(0, 600))) + '</tr>').join('');\nlet body = '<p><b>' + esc(first) + '</b></p>';\nbody += '<table style=\"border-collapse:collapse;font-size:13px\"><tr>' + ['Agent', 'Status', 'Score', 'Fixtures passed', 'Best provider', 'Models (local/free)', 'Failures'].map((h) => td('<b>' + h + '</b>')).join('') + '</tr>' + rows + '</table>';\nif (!grade.ok) body += '<p><i>Master unavailable (' + esc(grade.reason) + ') — no grading this week.</i></p>';\nelse body += '<p style=\"white-space:pre-wrap\">' + esc(g.report) + '</p>';\nif (!$('Research').first().json.ok) body += '<p><i>Master unavailable (' + esc($('Research').first().json.reason) + ') — no research this week.</i></p>';\nelse {\n  body += '<h3>Candidates tried</h3>' + (candResults.length ? '<ul>' + tried.map((m) => '<li>' + esc(m) + ': ' + candResults.filter((r) => r.entry === m).map((r) => esc(r.agent + '/' + r.name + ' ' + (r.pass ? 'pass' : 'fail'))).join(', ') + '</li>').join('') + '</ul>' : '<p>None verified this week.</p>');\n  body += '<h3>Switch (paste into .env only if you agree)</h3>' + (lines.length ? '<pre>' + lines.map(esc).join('\\n') + '</pre>' : '<p>No change suggested.</p>');\n  const pend = (info.candidates ?? []).filter((x) => x.model.startsWith('ollama:') && !tried.includes(x.model));\n  if (pend.length) body += '<h3>Not pulled (tested next week once pulled)</h3><ul>' + pend.map((x) => '<li>run <code>ollama pull ' + esc(x.model.slice(7)) + '</code> (' + esc(x.size_gb ?? '?') + ' GB): ' + esc(x.why) + ' ' + link(x.source_url, 'source') + '</li>').join('') + '</ul>';\n  body += '<h3>Other options (untested)</h3><ul>' + (info.other_options ?? []).map((o) => '<li>' + esc(o.text) + ' ' + link(o.source_url, 'source') + '</li>').join('') + '</ul>';\n}\nbody += '<p><b>Master cost, last 7 days:</b> ' + esc(costLine) + ' — the one paid part, by design.</p>';\nconst date = new Date().toLocaleDateString('en-CA', { timeZone: $env.TZ });\nreturn [{ json: { subject: 'ShortCircuit weekly diagnosis — ' + date, html: page('Weekly diagnosis — ' + date, body),\n  tests: { results: results.map(({ output, ...r }) => r), candidates: candResults.map(({ output, ...r }) => r), first_line: first, env_lines: lines } } }];"
+      },
+      "id": "b6916f5c-7cef-7d5a-e6aa-1552fc965b86",
+      "position": [
+        15340,
+        1100
+      ]
+    },
+    {
+      "name": "Log tests",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO master_log (task, result) VALUES ('diagnose_tests', $1::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json.tests)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "a2582bf1-c533-b50e-7747-b4d93a819166",
+      "position": [
+        14560,
+        1100
+      ]
+    },
+    {
+      "name": "Mail report",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sca84aad68e9b1c7",
+          "mode": "list",
+          "cachedResultName": "sc.mail"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "subject": "={{ $('Report').first().json.subject }}",
+            "html": "={{ $('Report').first().json.html }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "html",
+              "displayName": "html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "7711e483-5cca-8aac-d0fe-5721bf93e4ad",
+      "position": [
+        14820,
+        880
+      ]
+    }
+  ],
+  "connections": {
+    "Sunday 05:00": {
+      "main": [
+        [
+          {
+            "node": "Begin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual": {
+      "main": [
+        [
+          {
+            "node": "Begin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Begin": {
+      "main": [
+        [
+          {
+            "node": "Fixtures scout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures scout": {
+      "main": [
+        [
+          {
+            "node": "Fixtures writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures writer": {
+      "main": [
+        [
+          {
+            "node": "Fixtures checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures checker": {
+      "main": [
+        [
+          {
+            "node": "Fixtures editor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures editor": {
+      "main": [
+        [
+          {
+            "node": "Fixtures director",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures director": {
+      "main": [
+        [
+          {
+            "node": "Fixtures cutter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures cutter": {
+      "main": [
+        [
+          {
+            "node": "Fixtures scheduler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures scheduler": {
+      "main": [
+        [
+          {
+            "node": "Test items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test items": {
+      "main": [
+        [
+          {
+            "node": "Next test",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next test": {
+      "main": [
+        [
+          {
+            "node": "Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run": {
+      "main": [
+        [
+          {
+            "node": "Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check": {
+      "main": [
+        [
+          {
+            "node": "Next test",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Results": {
+      "main": [
+        [
+          {
+            "node": "Week stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Week stats": {
+      "main": [
+        [
+          {
+            "node": "Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research": {
+      "main": [
+        [
+          {
+            "node": "Gemini models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini models": {
+      "main": [
+        [
+          {
+            "node": "Groq models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq models": {
+      "main": [
+        [
+          {
+            "node": "Ollama models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama models": {
+      "main": [
+        [
+          {
+            "node": "Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidates": {
+      "main": [
+        [
+          {
+            "node": "Any candidate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any candidate?": {
+      "main": [
+        [
+          {
+            "node": "Tests done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Next test cand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next test cand": {
+      "main": [
+        [
+          {
+            "node": "Candidate results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start cand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start cand": {
+      "main": [
+        [
+          {
+            "node": "Run cand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run cand": {
+      "main": [
+        [
+          {
+            "node": "Check cand",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check cand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check cand": {
+      "main": [
+        [
+          {
+            "node": "Next test cand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidate results": {
+      "main": [
+        [
+          {
+            "node": "Tests done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tests done": {
+      "main": [
+        [
+          {
+            "node": "Grade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grade": {
+      "main": [
+        [
+          {
+            "node": "Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report": {
+      "main": [
+        [
+          {
+            "node": "Log tests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log tests": {
+      "main": [
+        [
+          {
+            "node": "Mail report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Sunday 05:00 and by hand: runs every fixture on every provider of each chain, 7-day stats, Master research (web) → verified candidates tried → Master grade → local-or-free check in code → weekly report mail. Only reports; never changes settings (PLAN §4.9)."
+}

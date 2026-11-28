@@ -1,0 +1,288 @@
+{
+  "id": "sc5f2b4f0279035e",
+  "name": "sc.eval.scout",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Fixtures",
+      "type": "n8n-nodes-base.evaluationTrigger",
+      "typeVersion": 4.6,
+      "parameters": {
+        "source": "dataTable",
+        "dataTableId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "eval_scout"
+        }
+      },
+      "id": "852689c4-beaa-7117-cdc8-5a3eb45fa94c",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sc2d1a0dfcd39f25",
+          "mode": "list",
+          "cachedResultName": "sc.llm"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent": "scout",
+            "prompt": "={{ $json.prompt || 'scout' }}",
+            "user_content": "={{ $json.input }}",
+            "chain": "={{ $json.provider || String($env.LLM_CHAIN_SCOUT ?? '').split(',')[0] }}",
+            "exclude_provider": "",
+            "temperature": "={{ 0.3 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "user_content",
+              "displayName": "user_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "chain",
+              "displayName": "chain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "exclude_provider",
+              "displayName": "exclude_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "any",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "18bad612-2d3f-e794-73a5-aabf9662ee90",
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "name": "Checks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// No node runs the fixture's code checks.\nconst runChecks = (o, e) => {\n  const f = []; o = o ?? {};\n  const text = (x) => JSON.stringify(x ?? '').toLowerCase();\n  const words = (o.scenes ?? []).map((s) => s.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\n  if (e.words && (words < e.words[0] || words > e.words[1])) f.push('narration is ' + words + ' words, want ' + e.words.join('-'));\n  if (e.title_max && String(o.title ?? '').length > e.title_max) f.push('title longer than ' + e.title_max);\n  if (e.fact_count !== undefined) for (const s of o.scenes ?? []) for (const id of s.fact_ids ?? []) if (!(id >= 0 && id < e.fact_count)) f.push('scene ' + s.id + ' cites missing fact ' + id);\n  for (const a of e.absent ?? []) if (text({ t: o.title, h: o.hook, s: (o.scenes ?? []).map((s) => s.narration) }).includes(String(a).toLowerCase())) f.push('still says \"' + a + '\"');\n  for (const re of e.notes_mention ?? []) if (!new RegExp(re, 'i').test(String(o.editor_notes ?? ''))) f.push('editor_notes do not say it was refused');\n  if (e.pass !== undefined && o.pass !== e.pass) f.push('pass is ' + o.pass + ', want ' + e.pass);\n  for (const re of e.flags_mention ?? []) if (!new RegExp(re, 'i').test(JSON.stringify([o.unsupported_claims, o.policy_issues]))) f.push('the planted error is not flagged');\n  if (e.urls_from) { const u = o.source_urls ?? []; if (u.some((x) => !e.urls_from.includes(x))) f.push('a source url is not from the candidates'); if (u.length < (e.min_urls ?? 2)) f.push('fewer than ' + (e.min_urls ?? 2) + ' source urls'); }\n  for (const bad of e.not_urls ?? []) if ((o.source_urls ?? []).includes(bad) || o.primary_url === bad) f.push('picked ' + bad);\n  if ('screenshot_only' in e) for (const s of o.scenes ?? []) if (s.visual?.type === 'screenshot' && s.visual.url !== e.screenshot_only) f.push('scene ' + s.id + ' screenshots ' + s.visual.url);\n  if (e.no_repeat_stock) (o.scenes ?? []).forEach((s, i, a) => { if (i && s.visual?.type === 'stock' && a[i - 1].visual?.type === 'stock' && s.visual.query === a[i - 1].visual.query) f.push('two stock scenes in a row with the same query'); });\n  if (e.narration_from) (o.scenes ?? []).forEach((s) => { if (!e.narration_from.includes(s.narration)) f.push('scene ' + s.id + ' narration changed'); });\n  if (e.mood_in && !e.mood_in.includes(o.music_mood)) f.push('music_mood ' + o.music_mood + ' not allowed');\n  if (e.narration_change_empty === true && o.narration_change) f.push('narration_change should be empty');\n  if (e.narration_change_empty === false && !o.narration_change) f.push('the narration note was not passed on');\n  if (e.candidates) {\n    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];\n    if (!days.every((d) => e.candidates.includes(o.week?.[d]))) f.push('a time is not a candidate');\n    if (days.filter((d) => o.week?.[d] !== e.current[d]).length > (e.max_changes ?? 2) + (o.explore_day ? 1 : 0)) f.push('more than ' + e.max_changes + ' days changed');\n  }\n  return f;\n};\n\nconst row = $('Fixtures').item.json; const r = $input.item.json;\nconst fails = r.ok ? runChecks(r.json, JSON.parse(row.expect || '{}')) : ['call failed: ' + String(r.error?.message ?? r.error ?? 'error').slice(0, 200)];\nreturn { json: { pass: fails.length ? 0 : 1, fails: fails.join('; '), output: r.ok ? JSON.stringify(r.json) : '', expect: row.expect } };"
+      },
+      "id": "608a283e-9f84-c3ff-40b7-a9acc3ab7814",
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "name": "Pass metric",
+      "type": "n8n-nodes-base.evaluation",
+      "typeVersion": 4.7,
+      "parameters": {
+        "operation": "setMetrics",
+        "metric": "customMetrics",
+        "metrics": {
+          "assignments": [
+            {
+              "id": "70334035-f66b-b6b4-30db-e90954bd9418",
+              "name": "pass",
+              "value": "={{ $json.pass }}",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "c8b6e6eb-0e2c-c376-c36f-b7694efa32d1",
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "name": "Correctness",
+      "type": "n8n-nodes-base.evaluation",
+      "typeVersion": 4.7,
+      "parameters": {
+        "operation": "setMetrics",
+        "metric": "correctness",
+        "expectedAnswer": "={{ 'The output must satisfy these checks: ' + $('Checks').item.json.expect }}",
+        "actualAnswer": "={{ $('Checks').item.json.output || ('FAILED: ' + $('Checks').item.json.fails) }}",
+        "options": {}
+      },
+      "id": "3aee5244-3ff5-9b20-f844-042b2939fd5f",
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "name": "Judge model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MASTER_MODEL }}"
+        },
+        "options": {
+          "maxTokensToSample": 4000,
+          "thinkingMode": "adaptive",
+          "effort": "low"
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "scCredAnthropic1",
+          "name": "Anthropic"
+        }
+      },
+      "id": "46e1e295-9903-3544-32b4-92fa880e742e",
+      "position": [
+        0,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Judge model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Correctness",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixtures": {
+      "main": [
+        [
+          {
+            "node": "Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run": {
+      "main": [
+        [
+          {
+            "node": "Checks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Checks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checks": {
+      "main": [
+        [
+          {
+            "node": "Pass metric",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass metric": {
+      "main": [
+        [
+          {
+            "node": "Correctness",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Evaluations tab → Run Test: each eval_scout row → sc.llm (row provider, else the first in LLM_CHAIN_SCOUT) → metrics pass (code checks) and correctness (LLM judge). After the first sc.fixtures run, pick the table eval_scout in the trigger once (PLAN §4.9)."
+}

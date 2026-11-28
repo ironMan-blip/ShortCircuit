@@ -1,0 +1,77 @@
+{
+  "id": "sc2b2c8bdccc842a",
+  "name": "sc.tool.list_stuck",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "note",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "7b693b60-7644-1049-0721-47ec633a7ce6",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Read",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('job', 'SC-' || lpad(id::text, 4, '0'), 'status', status, 'attempts', attempts, 'updated_at', updated_at,\n  'last_error', left(last_error, 300), 'master_rounds', master_rounds, 'title', script->>'title')), '[]') AS result\nFROM (SELECT * FROM jobs WHERE status IN ('new', 'script_review', 'needs_human', 'revising', 'script_approved', 'video_review', 'video_editing', 'approved', 'awaiting_upload', 'scheduled') AND updated_at < now() - interval '24 hours' ORDER BY updated_at LIMIT 20) s;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "scCredPostgres01",
+          "name": "SC Postgres"
+        }
+      },
+      "id": "703da1b3-f298-f8e6-81f5-2c791c83a2ab",
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "scec7dd24bdb2847",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "description": "Jobs in an active state for more than 24 h (not triage, not failed); at most 20."
+}
