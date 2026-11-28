@@ -54,6 +54,7 @@ check() {
     case $line in '' | '#'*) continue ;; esac
     if ! [[ $line =~ ^([A-Z][A-Z0-9_]*)=(.*)$ ]]; then echo "line $n is not KEY=value"; return 1; fi
     key=${BASH_REMATCH[1]} val=${BASH_REMATCH[2]}
+    [[ $key == MASTER_EFFORT ]] && { echo "line $n: MASTER_EFFORT is gone (the Master is Gemini now): delete this line"; return 1; }
     case " $REQUIRED " in *" $key "*) ;; *) echo "line $n: unknown key $key"; return 1 ;; esac
     case $seen in *" $key "*) echo "line $n: $key is set twice"; return 1 ;; esac
     seen="$seen$key "
@@ -66,7 +67,8 @@ check() {
       OWNER_EMAIL | BOT_EMAIL) [[ $val =~ $RE_EMAIL ]] || { echo "line $n: $key must be exactly one address"; return 1; } ;;
       CHANNEL_HANDLE) [[ $val =~ $RE_HANDLE ]] || { echo "line $n: CHANNEL_HANDLE must look like @handle (3-30 of A-Z a-z 0-9 . _ -)"; return 1; } ;;
       PUBLISH_MODE) [[ $val == manual || $val == auto ]] || { echo "line $n: PUBLISH_MODE must be manual or auto"; return 1; } ;;
-      MASTER_MODEL) [[ $val =~ ^gemini-[A-Za-z0-9._-]+$ ]] || { echo "line $n: MASTER_MODEL must be a Gemini model id (gemini-...)"; return 1; } ;;
+      # gemini-1.x needs google_search_retrieval, not the google_search tool the research call sends
+      MASTER_MODEL) [[ $val =~ ^gemini-[A-Za-z0-9._-]+$ && $val != gemini-1.* ]] || { echo "line $n: MASTER_MODEL must be a Gemini 2+ model id (gemini-...)"; return 1; } ;;
       LLM_CHAIN_*)
         [[ $val =~ $RE_CHAIN ]] || { echo "line $n: $key must be a comma list of gemini, groq, ollama (each optionally :model)"; return 1; }
         if [[ $key == LLM_CHAIN_EDITOR || $key == LLM_CHAIN_CUTTER ]] && [[ ,$val =~ ,gemini(,|:|$) ]]; then

@@ -46,4 +46,24 @@ const d = desc({ description: 'Read more at https://evil.example/x or www.evil.e
 assert.ok(!d.includes('evil') && d.includes('https://www.theverge.com/a') && d.endsWith('#Shorts') && !d.includes('http://bad'), d);
 assert.ok(tags({ tags: ['pi', 'a<b'] }, 42).includes('sc-0042'));
 
+// sc.ask_master Check response: Gemini errors, retry delay, auth only on errors, grounding links
+{
+  const code = JSON.parse(fs.readFileSync(new URL('../../workflows/sc.ask_master.json', import.meta.url))).nodes.find((x) => x.name === 'Check response').parameters.jsCode;
+  const check = (resp) => {
+    const $ = (n) => n === 'Next call' ? { isExecuted: false } : { first: () => ({ json: n === 'Build request' ? { body: {}, retries: 0 } : {} }) };
+    return new Function('$', '$input', '$env', code)($, { first: () => ({ json: resp }) }, { MASTER_MODEL: 'gemini-x' })[0].json;
+  };
+  const retryInfo = (extra) => ({ statusCode: 429, body: { error: { details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '37.2s' }, ...extra] } } });
+  assert.equal(check(retryInfo([])).wait, 38);
+  assert.equal(check(retryInfo([{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }])).reason, 'limit');
+  assert.equal(check({ statusCode: 400, body: { error: { message: 'API key not valid.', status: 'INVALID_ARGUMENT' } } }).reason, 'auth');
+  const redirect = 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc';
+  const reply = { in_use: [{ model: 'gemini:x', free: 'yes', source_url: redirect }], candidates: [], other_options: [{ text: 'API key not valid is a common error', source_url: 'https://evil.example/' }] };
+  const ok = check({ statusCode: 200, body: { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(reply) }] },
+    groundingMetadata: { groundingChunks: [{ web: { uri: redirect, title: 'ai.google.dev' } }, { web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/zzz', title: 'evil.example' } }] } }] } });
+  assert.ok(ok.ok, JSON.stringify(ok));
+  assert.equal(ok.json.in_use[0].source_url, redirect);
+  assert.equal(ok.json.other_options[0].source_url, '');
+}
+
 console.log('wfgen self-check passed');

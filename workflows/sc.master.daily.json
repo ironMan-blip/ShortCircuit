@@ -253,7 +253,7 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "note": ""
+            "note": "={{ $fromAI('note', 'Optional; leave empty', 'string') }}"
           },
           "matchingColumns": [],
           "schema": [

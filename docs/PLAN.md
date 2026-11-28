@@ -451,7 +451,7 @@ About 8–12 worker LLM calls and 2 Master calls make one video.
 
 ### 4.8 Master — supervisor
 
-- **Model:** Gemini free tier (`MASTER_MODEL`, default `gemini-2.5-flash`) through n8n's
+- **Model:** Gemini free tier (`MASTER_MODEL`, default `gemini-2.5-flash-lite`, kept apart from `GEMINI_MODEL` so the two do not share one free quota) through n8n's
   **Google Gemini Chat Model** sub-node, credential `Gemini` (the workers' key). Not through
   `sc.llm`: there is no fallback provider. One exception uses a raw HTTP Request instead:
   `diagnose_research` needs Google Search grounding, which the node does not offer (§5.1).
@@ -754,7 +754,7 @@ per tick, so no extra queue is needed. (`sc.diagnose` runs weekly; an overlap wi
 `console.groq.com`, `ollama.com`, `huggingface.co`, `github.com`, `lmarena.ai`,
 `artificialanalysis.ai`. Links elsewhere are dropped: less room for a planted page.
 
-Settings: `MASTER_MODEL` (default `gemini-2.5-flash`; `apply-env.sh` accepts only `gemini-…`).
+Settings: `MASTER_MODEL` (default `gemini-2.5-flash-lite`; `apply-env.sh` accepts only `gemini-…`, not `gemini-1.*`).
 
 Tests (M7, M9): a *Manual Trigger* test workflow `sc.ask_master.test` calls the
 sub-workflow with fixture contexts from `tests/master/` and checks the output: valid JSON

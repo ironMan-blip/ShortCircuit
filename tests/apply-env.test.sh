@@ -94,6 +94,9 @@ setup; run; echo "NODE_OPTIONS=--require=/data/x.js" >>"$R/.env"; run
 ok "unknown key refused" '[ "$(notes)" = 1 ] && ! live_has "NODE_OPTIONS=--require=/data/x.js"'
 setup; run; echo "GENERIC_TIMEZONE=UTC" >>"$R/.env"; run
 ok "derived key in .env refused" '[ "$(notes)" = 1 ]'
+reject_case "gemini 1.x master model" MASTER_MODEL "gemini-1.5-flash"
+setup; run; echo "MASTER_EFFORT=high" >>"$R/.env"; run
+ok "old MASTER_EFFORT refused with a hint" '[ "$(notes)" = 1 ] && grep -q "MASTER_EFFORT is gone" "$R/stub/notify.log"'
 setup; sed -i '' '/^BOT_EMAIL=/d' "$R/.env"; run
 ok "missing key refused" '[ "$(notes)" = 1 ] && grep -q "BOT_EMAIL is missing" "$R/stub/notify.log"'
 setup; run; sed -i '' 's/^OWNER_EMAIL=.*/OWNER_EMAIL=me@example.com\r/' "$R/.env"; run

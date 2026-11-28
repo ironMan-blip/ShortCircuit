@@ -102,11 +102,13 @@ const usage = { input_tokens: um.promptTokenCount ?? 0, output_tokens: (um.candi
 const fail = (reason, detail) => [{ json: { done: true, ok: false, reason, detail: String(detail).slice(0, 2000), usage } }];
 const err = JSON.stringify(b).slice(0, 1500);
 if (code === 429 || code >= 500) {
-  if (st.retries < 1) return [{ json: { done: false, wait: Math.min(60, Number(r.headers?.['retry-after']) || 20), next: { ...st, retries: st.retries + 1 } } }];
+  // Gemini sends no retry-after header: the delay is in error.details RetryInfo ("37s"). A used-up daily quota is not worth a retry.
+  const delay = parseFloat((b.error?.details ?? []).find((d) => /RetryInfo$/.test(d?.['@type'] ?? ''))?.retryDelay);
+  if (st.retries < 1 && !/PerDay/i.test(JSON.stringify(b))) return [{ json: { done: false, wait: Math.min(60, Math.ceil(delay) || Number(r.headers?.['retry-after']) || 20), next: { ...st, retries: st.retries + 1 } } }];
   return fail(code === 429 ? 'limit' : 'down', 'HTTP ' + code + ' ' + err);
 }
-// Gemini answers a bad key with 400 API_KEY_INVALID
-if (code === 401 || code === 403 || /API_KEY_INVALID|API key not valid/i.test(err)) return fail('auth', 'HTTP ' + code);
+// Gemini answers a bad key with 400 API_KEY_INVALID (only on an error: a good research reply may quote that text)
+if (code === 401 || code === 403 || (code !== 200 && /API_KEY_INVALID|API key not valid/i.test(err))) return fail('auth', 'HTTP ' + code);
 if (code !== 200) return fail(code === 400 ? 'invalid' : 'down', 'HTTP ' + code + ' ' + err);
 if (c0.finishReason !== 'STOP') return fail('invalid', 'finishReason ' + c0.finishReason);
 const text = (c0.content?.parts ?? []).filter((x) => x.text && !x.thought).map((x) => x.text).join('');
@@ -115,7 +117,12 @@ for (let s = text.lastIndexOf('{', end); s >= 0 && !obj; s = text.lastIndexOf('{
 if (!obj) return fail('invalid', 'no JSON object with in_use at the end of the reply');
 const arr = (a) => (Array.isArray(a) ? a : []);
 // google_search has no domain filter: keep a source link only when it is on an allowed site
-const src = (u) => { const h = (/^https:\\/\\/([^/:?#]+)/i.exec(String(u ?? '')) ?? [])[1]?.toLowerCase(); return h && DIAG_WEB_DOMAINS.some((d) => h === d || h.endsWith('.' + d)) ? String(u) : ''; };
+const allowed = (h) => !!h && DIAG_WEB_DOMAINS.some((d) => h === d || h.endsWith('.' + d));
+const hostOf = (u) => (/^https:\\/\\/([^/:?#]+)/i.exec(String(u ?? '')) ?? [])[1]?.toLowerCase();
+// grounding cites vertexaisearch redirect links; the chunk title names the real site
+// shortcut: redirect links expire after some days, fine for a weekly email; resolve them if the report is kept longer
+const redirects = new Set((c0.groundingMetadata?.groundingChunks ?? []).filter((g) => allowed(String(g.web?.title ?? '').toLowerCase())).map((g) => g.web.uri));
+const src = (u) => (allowed(hostOf(u)) || redirects.has(u) ? String(u) : '');
 const json = {
   in_use: arr(obj.in_use).map((x) => ({ model: String(x.model ?? ''), free: ['yes', 'no', 'unknown'].includes(x.free) ? x.free : 'unknown', limits: String(x.limits ?? '').slice(0, 300), source_url: src(x.source_url) })),
   candidates: arr(obj.candidates).slice(0, 3).filter((c) => /^(gemini|groq|ollama):[A-Za-z0-9._:\\/-]{1,100}$/.test(c.model)).map((c) => ({ model: c.model, agents: arr(c.agents).filter((a) => ${JSON.stringify(AGENTS)}.includes(a)), why: String(c.why ?? '').slice(0, 500), free: String(c.free ?? ''), size_gb: Number(c.size_gb) || null, source_url: src(c.source_url) })),
@@ -261,7 +268,8 @@ const fromAI = (key, desc, type = 'string') => `={{ $fromAI('${key}', '${desc}',
 function agentTools(w, agentName, mode, jobExpr, names) {
   for (const t of names) {
     const inputs = t === 'crew_stats' ? { days: fromAI('days', 'How many days back, 1-30', 'number') }
-      : t === 'list_stuck' ? { note: '' }
+      // Gemini refuses a function whose parameters object is empty, so list_stuck takes one the tool ignores
+      : t === 'list_stuck' ? { note: fromAI('note', 'Optional; leave empty') }
       : t === 'get_job' ? { job: fromAI('job', 'The job id, e.g. SC-0042') }
       : { job: jobExpr, mode, claimed_id: mode === 'triage' ? "={{ $('Pick').first().json.id }}" : '0',
           text: fromAI(t === 'redo_job' ? 'feedback' : t === 'fail_job' ? 'diagnosis' : 'reason', t === 'redo_job' ? 'Concrete feedback for the Editor or Cutter' : t === 'fail_job' ? 'Your diagnosis for the owner' : 'Why') };
