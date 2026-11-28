@@ -18,7 +18,7 @@
           ]
         }
       },
-      "id": "b5aa2e32-29af-1a54-74e0-7ca18c5c40ed",
+      "id": "8b29c8e1-00f4-df03-b7e9-3d5b9d51c9e2",
       "position": [
         0,
         0
@@ -61,7 +61,7 @@
           "waitForSubWorkflow": true
         }
       },
-      "id": "d09339ae-e7e9-22aa-d9ce-69552e162cf0",
+      "id": "d3f7bc5a-ee91-7cb8-e30b-760a4a111252",
       "position": [
         260,
         0
@@ -96,7 +96,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "d800f7b6-5084-1edf-e7ab-b6cb152a3934",
+      "id": "5de82354-67c2-6d11-e96a-1e7eebb9ec60",
       "position": [
         520,
         0
@@ -137,7 +137,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "abbbc086-cce1-36ea-4633-dbc83133e415",
+      "id": "9772b2cb-66c2-388c-9587-247ea4a7a6bd",
       "position": [
         780,
         0
@@ -182,7 +182,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "41d5df32-f2be-554b-a9d2-629e1a6f5555",
+      "id": "b5aa2e32-29af-1a54-74e0-7ca18c5c40ed",
       "position": [
         1040,
         0
@@ -223,7 +223,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "e7fbd7e2-1b6c-fc61-951b-4454d2844562",
+      "id": "d09339ae-e7e9-22aa-d9ce-69552e162cf0",
       "position": [
         1300,
         0
@@ -246,7 +246,7 @@
       },
       "alwaysOutputData": true,
       "executeOnce": true,
-      "id": "a230792b-9216-080e-5abf-0b1747c6a1a5",
+      "id": "d800f7b6-5084-1edf-e7ab-b6cb152a3934",
       "position": [
         1560,
         0
@@ -261,7 +261,7 @@
         "language": "javaScript",
         "jsCode": "// No node matches videos to jobs by a hidden tag and decides each job's next state.\nconst ch = $('Channel').first().json.channel_id;\nconst vids = ($('Videos').first().json.items ?? []).filter((v) => v.snippet?.channelId === ch);\nconst jobs = $input.all().map((i) => i.json).filter((j) => j.id);\nconst byTag = new Map(); const byTitle = new Map();\nfor (const v of vids) { for (const t of v.snippet.tags ?? []) { const m = /^sc-([0-9]{4,})$/i.exec(t); if (m) byTag.set(Number(m[1]), v); } byTitle.set(String(v.snippet.title).trim(), v); }\nconst acts = [];\nfor (const j of jobs) {\n  const v = byTag.get(j.id) ?? (j.title ? byTitle.get(String(j.title).trim()) : undefined);\n  const ours = !j.channel_id || j.channel_id === ch;\n  if (j.status === 'awaiting_upload' && v) acts.push({ type: 'scheduled', id: j.id, youtube_id: v.id });\n  else if (v && !j.youtube_id && j.status !== 'awaiting_upload') acts.push({ type: 'save_id', id: j.id, youtube_id: v.id, job: j.job, status: j.status });\n  if (j.status === 'scheduled' && ours && j.youtube_id) {\n    const sv = vids.find((x) => x.id === j.youtube_id) ?? v;\n    if (sv && sv.status?.privacyStatus === 'public') acts.push({ type: 'live', id: j.id });\n    else if (!sv) acts.push({ type: 'gone_check', id: j.id, youtube_id: j.youtube_id });\n  }\n}\nconst stats = vids.map((v) => ({ id: v.id, views: Number(v.statistics?.viewCount ?? 0), likes: Number(v.statistics?.likeCount ?? 0), comments: Number(v.statistics?.commentCount ?? 0) }));\nreturn [{ json: { acts, stats } }];"
       },
-      "id": "26cd9e73-1b3c-da21-446e-09db90b8267d",
+      "id": "abbbc086-cce1-36ea-4633-dbc83133e415",
       "position": [
         1820,
         0
@@ -277,7 +277,7 @@
           "destinationFieldName": "a"
         }
       },
-      "id": "8805a7e8-6174-86fb-fc26-ed839f46ae93",
+      "id": "41d5df32-f2be-554b-a9d2-629e1a6f5555",
       "position": [
         2080,
         0
@@ -391,7 +391,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "76ce4b8a-cbde-3ed0-6f21-f24633dd1792",
+      "id": "e7fbd7e2-1b6c-fc61-951b-4454d2844562",
       "position": [
         2340,
         0
@@ -414,7 +414,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "9b47a5cd-b3cf-5982-d8ed-5cc3c377f68d",
+      "id": "a230792b-9216-080e-5abf-0b1747c6a1a5",
       "position": [
         2600,
         0
@@ -437,7 +437,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "c44cb4f8-cc13-d6f3-7e11-2832bd9278de",
+      "id": "26cd9e73-1b3c-da21-446e-09db90b8267d",
       "position": [
         2600,
         220
@@ -472,7 +472,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "864346e8-bb67-f334-5cb9-bc42559d0231",
+      "id": "8805a7e8-6174-86fb-fc26-ed839f46ae93",
       "position": [
         2860,
         0
@@ -538,7 +538,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "6403d1d9-d40a-2d6a-e403-bf99eccc5f4d",
+      "id": "76ce4b8a-cbde-3ed0-6f21-f24633dd1792",
       "position": [
         3120,
         0
@@ -561,7 +561,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "09dd58e3-890d-6d03-c791-b5f8c572e84c",
+      "id": "9b47a5cd-b3cf-5982-d8ed-5cc3c377f68d",
       "position": [
         2600,
         440
@@ -603,7 +603,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "b2fff018-09c4-fabb-bc7e-b7d60f3a7221",
+      "id": "c44cb4f8-cc13-d6f3-7e11-2832bd9278de",
       "position": [
         2600,
         660
@@ -638,7 +638,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "bbfef107-0ca6-c01f-9abc-475ee94d07ea",
+      "id": "864346e8-bb67-f334-5cb9-bc42559d0231",
       "position": [
         2860,
         220
@@ -661,7 +661,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "7183b7ec-87a5-f359-6f5c-76345727dc91",
+      "id": "6403d1d9-d40a-2d6a-e403-bf99eccc5f4d",
       "position": [
         3120,
         220
@@ -686,7 +686,7 @@
       },
       "alwaysOutputData": true,
       "executeOnce": true,
-      "id": "836dcf01-cbbf-9fe8-5da8-28a1ede2756c",
+      "id": "09dd58e3-890d-6d03-c791-b5f8c572e84c",
       "position": [
         2080,
         220
@@ -721,7 +721,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "220eb05f-aae8-30a6-fee6-89bacdfe8edc",
+      "id": "b2fff018-09c4-fabb-bc7e-b7d60f3a7221",
       "position": [
         2600,
         880
@@ -752,7 +752,7 @@
       "maxTries": 3,
       "waitBetweenTries": 20000,
       "onError": "continueErrorOutput",
-      "id": "3928cd95-afea-d8b4-6069-86865ebee9c8",
+      "id": "bbfef107-0ca6-c01f-9abc-475ee94d07ea",
       "position": [
         2860,
         440
@@ -787,7 +787,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "1c9cfa19-7fa7-ce03-9160-14f850ecf750",
+      "id": "7183b7ec-87a5-f359-6f5c-76345727dc91",
       "position": [
         3120,
         440
@@ -810,7 +810,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "b761c946-e80b-f204-34a8-0ef6e768f84c",
+      "id": "836dcf01-cbbf-9fe8-5da8-28a1ede2756c",
       "position": [
         3380,
         0
@@ -834,7 +834,7 @@
         }
       },
       "executeOnce": true,
-      "id": "43e48fce-8e41-0742-035e-bfa1f5d7bdd5",
+      "id": "220eb05f-aae8-30a6-fee6-89bacdfe8edc",
       "position": [
         2080,
         440
@@ -900,7 +900,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "c9b43c54-aa94-93d7-d4bb-ba202f789d39",
+      "id": "3928cd95-afea-d8b4-6069-86865ebee9c8",
       "position": [
         2600,
         1100
@@ -924,7 +924,7 @@
         }
       },
       "executeOnce": true,
-      "id": "e67048c7-8260-8989-b96f-7ac828442c7a",
+      "id": "1c9cfa19-7fa7-ce03-9160-14f850ecf750",
       "position": [
         2080,
         660
@@ -959,7 +959,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "6942ab09-4356-8a68-6745-4f1311e68330",
+      "id": "b761c946-e80b-f204-34a8-0ef6e768f84c",
       "position": [
         2340,
         220
@@ -994,7 +994,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "406c9f78-2443-83e6-e35b-690d618da2e4",
+      "id": "43e48fce-8e41-0742-035e-bfa1f5d7bdd5",
       "position": [
         2340,
         440

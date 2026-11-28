@@ -18,7 +18,7 @@
           ]
         }
       },
-      "id": "e3d7ca07-7b6c-0b73-2559-e0a759ce725f",
+      "id": "71794d8d-cb17-c69d-a29c-88c43da0784f",
       "position": [
         0,
         0
@@ -39,7 +39,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "7d7e55e9-3c01-e4be-a72d-97128625cb39",
+      "id": "035036df-3e7e-abb8-7477-8849b138d691",
       "position": [
         260,
         0
@@ -62,7 +62,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "1e2d6889-f304-30a7-27ee-63e848a4cca1",
+      "id": "fffe8be9-524a-3b4a-bbe0-1e51001863ef",
       "position": [
         2340,
         0
@@ -96,7 +96,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "aeba6710-5735-8eeb-d77f-d6190ee408de",
+      "id": "5414309d-b241-ff1b-7edf-8d36d4457c0f",
       "position": [
         780,
         0
@@ -120,7 +120,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "7da1df00-7a93-a08a-605e-27ae5a590b2d",
+      "id": "e3d7ca07-7b6c-0b73-2559-e0a759ce725f",
       "position": [
         1040,
         0
@@ -185,7 +185,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "id": "31bb8f42-0ded-53bd-3a72-94246a48f6e5",
+      "id": "7d7e55e9-3c01-e4be-a72d-97128625cb39",
       "position": [
         1560,
         0
@@ -284,7 +284,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "d18b1869-1c60-1596-19e0-e25b7d92f094",
+      "id": "1e2d6889-f304-30a7-27ee-63e848a4cca1",
       "position": [
         1040,
         220
@@ -299,7 +299,7 @@
         "language": "javaScript",
         "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Editor').first().json.json;\nconst brief = $('Claim').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
       },
-      "id": "53a6f9c7-5739-c75b-229a-78d345cf3335",
+      "id": "aeba6710-5735-8eeb-d77f-d6190ee408de",
       "position": [
         1300,
         0
@@ -398,7 +398,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "1df18d52-c3e8-67d2-a620-e0f8b8562293",
+      "id": "7da1df00-7a93-a08a-605e-27ae5a590b2d",
       "position": [
         1560,
         220
@@ -413,7 +413,7 @@
         "language": "javaScript",
         "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules').first().json.rules;\nconst script = $('Editor').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'editor', writer_provider: $('Editor').first().json.provider, checker_provider: c.provider } }];"
       },
-      "id": "bef6d254-50b7-cbe3-4632-c4a46929b325",
+      "id": "31bb8f42-0ded-53bd-3a72-94246a48f6e5",
       "position": [
         1820,
         0
@@ -437,7 +437,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "45a02162-7fb9-fe9c-0afb-6af8b4fed46c",
+      "id": "d18b1869-1c60-1596-19e0-e25b7d92f094",
       "position": [
         2080,
         0
@@ -502,7 +502,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "id": "3aca3242-ba44-77c5-86f0-c4b5d4b2ee78",
+      "id": "53a6f9c7-5739-c75b-229a-78d345cf3335",
       "position": [
         2600,
         0
@@ -537,7 +537,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "63174e5c-ab71-bf71-ae36-57c2f3a8336a",
+      "id": "1df18d52-c3e8-67d2-a620-e0f8b8562293",
       "position": [
         520,
         0
@@ -572,7 +572,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "be48b99f-8cb5-e39e-3d28-dbdd19586f1a",
+      "id": "bef6d254-50b7-cbe3-4632-c4a46929b325",
       "position": [
         1300,
         220
@@ -607,7 +607,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "3a94dc6e-01b3-b500-1404-c5ee201b5b40",
+      "id": "45a02162-7fb9-fe9c-0afb-6af8b4fed46c",
       "position": [
         2340,
         220

@@ -9,7 +9,7 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "parameters": {},
-      "id": "0063186b-f968-13da-f327-06303ef7ccd4",
+      "id": "d380e2e5-5f81-6961-fc28-8fc297ad0f15",
       "position": [
         0,
         0
@@ -52,7 +52,7 @@
         }
       },
       "executeOnce": true,
-      "id": "01b35615-b01b-0658-b75c-a3873c6a9b0c",
+      "id": "a9749d20-d251-09c8-52d4-61f77b23019f",
       "position": [
         260,
         0
@@ -72,7 +72,7 @@
         }
       },
       "executeOnce": true,
-      "id": "c5484f77-fef8-c919-9173-90af0aea5b51",
+      "id": "ba15287a-49fa-4c11-5401-c816e649f47d",
       "position": [
         520,
         0
@@ -87,7 +87,7 @@
         "language": "javaScript",
         "jsCode": "// Fixture rows from tests/agents/scout.json, embedded by scripts/wfgen at build time.\nreturn [{\"name\":\"rumour not picked\",\"prompt\":\"scout_rank\",\"input\":\"<candidates>[{\\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"source\\\": \\\"The Verge\\\", \\\"score\\\": 50, \\\"date\\\": \\\"2026-11-27T08:00:00Z\\\"}, {\\\"title\\\": \\\"Pi 6 review: double the speed\\\", \\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"source\\\": \\\"Ars Technica\\\", \\\"score\\\": 50, \\\"date\\\": \\\"2026-11-27T09:00:00Z\\\"}, {\\\"title\\\": \\\"RUMOR: Apple to ban all third-party chargers tomorrow, insider says\\\", \\\"url\\\": \\\"https://www.reddit.com/r/gadgets/comments/xyz/rumor\\\", \\\"source\\\": \\\"Reddit r/gadgets\\\", \\\"score\\\": 9000, \\\"date\\\": \\\"2026-11-27T10:00:00Z\\\"}, {\\\"title\\\": \\\"Leaked: Pixel 12 might launch next week\\\", \\\"url\\\": \\\"https://news.ycombinator.com/item?id=1\\\", \\\"source\\\": \\\"Hacker News\\\", \\\"score\\\": 800, \\\"date\\\": \\\"2026-11-27T11:00:00Z\\\"}, {\\\"title\\\": \\\"Ollama adds image models\\\", \\\"url\\\": \\\"https://github.com/ollama/ollama\\\", \\\"source\\\": \\\"GitHub Trending\\\", \\\"score\\\": 99, \\\"date\\\": \\\"2026-11-27T07:00:00Z\\\"}]</candidates>\\n<recent_topics>[]</recent_topics>\",\"expect\":\"{\\\"urls_from\\\": [\\\"https://www.raspberrypi.com/news/pi6\\\", \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"https://www.reddit.com/r/gadgets/comments/xyz/rumor\\\", \\\"https://news.ycombinator.com/item?id=1\\\", \\\"https://github.com/ollama/ollama\\\"], \\\"not_urls\\\": [\\\"https://www.reddit.com/r/gadgets/comments/xyz/rumor\\\", \\\"https://news.ycombinator.com/item?id=1\\\"], \\\"min_urls\\\": 2}\",\"provider\":\"\"},{\"name\":\"recent topic not repeated\",\"prompt\":\"scout_rank\",\"input\":\"<candidates>[{\\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"source\\\": \\\"The Verge\\\", \\\"score\\\": 50, \\\"date\\\": \\\"2026-11-27T08:00:00Z\\\"}, {\\\"title\\\": \\\"Pi 6 review: double the speed\\\", \\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"source\\\": \\\"Ars Technica\\\", \\\"score\\\": 50, \\\"date\\\": \\\"2026-11-27T09:00:00Z\\\"}, {\\\"title\\\": \\\"RUMOR: Apple to ban all third-party chargers tomorrow, insider says\\\", \\\"url\\\": \\\"https://www.reddit.com/r/gadgets/comments/xyz/rumor\\\", \\\"source\\\": \\\"Reddit r/gadgets\\\", \\\"score\\\": 9000, \\\"date\\\": \\\"2026-11-27T10:00:00Z\\\"}, {\\\"title\\\": \\\"Leaked: Pixel 12 might launch next week\\\", \\\"url\\\": \\\"https://news.ycombinator.com/item?id=1\\\", \\\"source\\\": \\\"Hacker News\\\", \\\"score\\\": 800, \\\"date\\\": \\\"2026-11-27T11:00:00Z\\\"}, {\\\"title\\\": \\\"Ollama adds image models\\\", \\\"url\\\": \\\"https://github.com/ollama/ollama\\\", \\\"source\\\": \\\"GitHub Trending\\\", \\\"score\\\": 99, \\\"date\\\": \\\"2026-11-27T07:00:00Z\\\"}]</candidates>\\n<recent_topics>[\\\"Raspberry Pi 6 launch\\\"]</recent_topics>\",\"expect\":\"{\\\"urls_from\\\": [\\\"https://www.raspberrypi.com/news/pi6\\\", \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"https://www.reddit.com/r/gadgets/comments/xyz/rumor\\\", \\\"https://news.ycombinator.com/item?id=1\\\", \\\"https://github.com/ollama/ollama\\\"], \\\"not_urls\\\": [\\\"https://www.raspberrypi.com/news/pi6\\\", \\\"https://www.reddit.com/r/gadgets/comments/xyz/rumor\\\"], \\\"min_urls\\\": 1}\",\"provider\":\"\"}].map((r) => ({ json: r }));"
       },
-      "id": "94635357-5e47-80e9-6f30-43be48a1dbdf",
+      "id": "aea46844-d0c7-8764-2f9a-96cc56df8450",
       "position": [
         780,
         0
@@ -115,7 +115,7 @@
         },
         "options": {}
       },
-      "id": "0326b81f-6725-8bb2-7a8c-0894bd1be098",
+      "id": "0063186b-f968-13da-f327-06303ef7ccd4",
       "position": [
         1040,
         0
@@ -158,7 +158,7 @@
         }
       },
       "executeOnce": true,
-      "id": "ea9a1cce-f64c-f4ab-0d6a-3b99560b0ed3",
+      "id": "01b35615-b01b-0658-b75c-a3873c6a9b0c",
       "position": [
         1300,
         0
@@ -178,7 +178,7 @@
         }
       },
       "executeOnce": true,
-      "id": "7e99ee6e-a74e-f458-bc50-a04ca6c856e9",
+      "id": "c5484f77-fef8-c919-9173-90af0aea5b51",
       "position": [
         1560,
         0
@@ -193,7 +193,7 @@
         "language": "javaScript",
         "jsCode": "// Fixture rows from tests/agents/writer.json, embedded by scripts/wfgen at build time.\nreturn [{\"name\":\"fixture brief\",\"prompt\":\"writer\",\"input\":\"<brief>{\\\"topic\\\": \\\"Raspberry Pi 6 launch\\\", \\\"angle\\\": \\\"what changed for hobbyists\\\", \\\"shelf_life_days\\\": 30, \\\"facts\\\": [{\\\"claim\\\": \\\"The Raspberry Pi 6 costs $80\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"Raspberry Pi 6 is available today, priced at $80\\\"}, {\\\"claim\\\": \\\"It has 16 GB of RAM\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"ships with 16 GB of LPDDR5 RAM\\\"}, {\\\"claim\\\": \\\"It is about twice as fast as the Pi 5 on CPU work\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"roughly double the Pi 5 in our CPU benchmarks\\\"}, {\\\"claim\\\": \\\"It needs a 45 W USB-C supply for full speed\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"a 45W USB-C supply is required to run at full clock\\\"}], \\\"sources\\\": [{\\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"publisher\\\": \\\"Raspberry Pi\\\"}, {\\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"title\\\": \\\"Pi 6 review\\\", \\\"publisher\\\": \\\"Ars Technica\\\"}], \\\"primary_url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}</brief>\",\"expect\":\"{\\\"words\\\": [90, 140], \\\"title_max\\\": 70, \\\"fact_count\\\": 4}\",\"provider\":\"\"},{\"name\":\"fix with flags\",\"prompt\":\"writer\",\"input\":\"<brief>{\\\"topic\\\": \\\"Raspberry Pi 6 launch\\\", \\\"angle\\\": \\\"what changed for hobbyists\\\", \\\"shelf_life_days\\\": 30, \\\"facts\\\": [{\\\"claim\\\": \\\"The Raspberry Pi 6 costs $80\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"Raspberry Pi 6 is available today, priced at $80\\\"}, {\\\"claim\\\": \\\"It has 16 GB of RAM\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"ships with 16 GB of LPDDR5 RAM\\\"}, {\\\"claim\\\": \\\"It is about twice as fast as the Pi 5 on CPU work\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"roughly double the Pi 5 in our CPU benchmarks\\\"}, {\\\"claim\\\": \\\"It needs a 45 W USB-C supply for full speed\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"a 45W USB-C supply is required to run at full clock\\\"}], \\\"sources\\\": [{\\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"publisher\\\": \\\"Raspberry Pi\\\"}, {\\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"title\\\": \\\"Pi 6 review\\\", \\\"publisher\\\": \\\"Ars Technica\\\"}], \\\"primary_url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}</brief>\\n<flags>[\\\"scene 1 says sixty dollars; the source says $80\\\"]</flags>\\n<previous_script>{\\\"title\\\": \\\"The Pi 6 is twice as fast for $60\\\", \\\"hook\\\": \\\"Your next home server might cost less than a video game.\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for sixty dollars, and it is a big jump.\\\", \\\"fact_ids\\\": [0], \\\"visual_hint\\\": \\\"Pi 6 board on a desk\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"fact_ids\\\": [1], \\\"visual_hint\\\": \\\"card: 16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"fact_ids\\\": [2], \\\"visual_hint\\\": \\\"benchmark bars\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"fact_ids\\\": [3], \\\"visual_hint\\\": \\\"USB-C charger\\\"}], \\\"description\\\": \\\"The Raspberry Pi 6 is out: 16 GB of RAM, about twice the speed of the Pi 5, for $80.\\\", \\\"tags\\\": [\\\"raspberry pi\\\", \\\"pi 6\\\", \\\"home server\\\"]}</previous_script>\",\"expect\":\"{\\\"words\\\": [90, 140], \\\"title_max\\\": 70, \\\"fact_count\\\": 4, \\\"absent\\\": [\\\"sixty\\\"]}\",\"provider\":\"\"}].map((r) => ({ json: r }));"
       },
-      "id": "ab81e7ac-272a-73b1-8eb0-33dd98075702",
+      "id": "94635357-5e47-80e9-6f30-43be48a1dbdf",
       "position": [
         1820,
         0
@@ -221,7 +221,7 @@
         },
         "options": {}
       },
-      "id": "42347651-833f-42aa-990f-66d2614b843a",
+      "id": "0326b81f-6725-8bb2-7a8c-0894bd1be098",
       "position": [
         2080,
         0
@@ -264,7 +264,7 @@
         }
       },
       "executeOnce": true,
-      "id": "85371200-4cb6-1e32-a3b5-39806d25e809",
+      "id": "ea9a1cce-f64c-f4ab-0d6a-3b99560b0ed3",
       "position": [
         2340,
         0
@@ -284,7 +284,7 @@
         }
       },
       "executeOnce": true,
-      "id": "1bf0adb2-0d6d-799f-bc8e-a10b9ceb5e09",
+      "id": "7e99ee6e-a74e-f458-bc50-a04ca6c856e9",
       "position": [
         2600,
         0
@@ -299,7 +299,7 @@
         "language": "javaScript",
         "jsCode": "// Fixture rows from tests/agents/checker.json, embedded by scripts/wfgen at build time.\nreturn [{\"name\":\"planted wrong number\",\"prompt\":\"checker\",\"input\":\"<script>{\\\"title\\\": \\\"The Pi 6 is twice as fast for $60\\\", \\\"hook\\\": \\\"Your next home server might cost less than a video game.\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for sixty dollars, and it is a big jump.\\\", \\\"fact_ids\\\": [0], \\\"visual_hint\\\": \\\"Pi 6 board on a desk\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"fact_ids\\\": [1], \\\"visual_hint\\\": \\\"card: 16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"fact_ids\\\": [2], \\\"visual_hint\\\": \\\"benchmark bars\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"fact_ids\\\": [3], \\\"visual_hint\\\": \\\"USB-C charger\\\"}], \\\"description\\\": \\\"The Raspberry Pi 6 is out: 16 GB of RAM, about twice the speed of the Pi 5, for $80.\\\", \\\"tags\\\": [\\\"raspberry pi\\\", \\\"pi 6\\\", \\\"home server\\\"]}</script>\\n<brief>{\\\"topic\\\": \\\"Raspberry Pi 6 launch\\\", \\\"angle\\\": \\\"what changed for hobbyists\\\", \\\"shelf_life_days\\\": 30, \\\"facts\\\": [{\\\"claim\\\": \\\"The Raspberry Pi 6 costs $80\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"Raspberry Pi 6 is available today, priced at $80\\\"}, {\\\"claim\\\": \\\"It has 16 GB of RAM\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"ships with 16 GB of LPDDR5 RAM\\\"}, {\\\"claim\\\": \\\"It is about twice as fast as the Pi 5 on CPU work\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"roughly double the Pi 5 in our CPU benchmarks\\\"}, {\\\"claim\\\": \\\"It needs a 45 W USB-C supply for full speed\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"a 45W USB-C supply is required to run at full clock\\\"}], \\\"sources\\\": [{\\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"publisher\\\": \\\"Raspberry Pi\\\"}, {\\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"title\\\": \\\"Pi 6 review\\\", \\\"publisher\\\": \\\"Ars Technica\\\"}], \\\"primary_url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}</brief>\\n<source url=\\\"https://www.raspberrypi.com/news/pi6\\\">Raspberry Pi 6 is available today, priced at $80. More text about the board.</source>\\n<source url=\\\"https://www.raspberrypi.com/news/pi6\\\">ships with 16 GB of LPDDR5 RAM. More text about the board.</source>\\n<source url=\\\"https://arstechnica.com/gadgets/pi6-review\\\">roughly double the Pi 5 in our CPU benchmarks. More text about the board.</source>\\n<source url=\\\"https://arstechnica.com/gadgets/pi6-review\\\">a 45W USB-C supply is required to run at full clock. More text about the board.</source>\\n\",\"expect\":\"{\\\"pass\\\": false, \\\"flags_mention\\\": [\\\"60|sixty|price|\\\\\\\\$80|eighty\\\"]}\",\"provider\":\"\"},{\"name\":\"clean script\",\"prompt\":\"checker\",\"input\":\"<script>{\\\"title\\\": \\\"The Pi 6 is twice as fast for $80\\\", \\\"hook\\\": \\\"Your next home server might cost less than a video game.\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"fact_ids\\\": [0], \\\"visual_hint\\\": \\\"Pi 6 board on a desk\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"fact_ids\\\": [1], \\\"visual_hint\\\": \\\"card: 16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"fact_ids\\\": [2], \\\"visual_hint\\\": \\\"benchmark bars\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"fact_ids\\\": [3], \\\"visual_hint\\\": \\\"USB-C charger\\\"}], \\\"description\\\": \\\"The Raspberry Pi 6 is out: 16 GB of RAM, about twice the speed of the Pi 5, for $80.\\\", \\\"tags\\\": [\\\"raspberry pi\\\", \\\"pi 6\\\", \\\"home server\\\"]}</script>\\n<brief>{\\\"topic\\\": \\\"Raspberry Pi 6 launch\\\", \\\"angle\\\": \\\"what changed for hobbyists\\\", \\\"shelf_life_days\\\": 30, \\\"facts\\\": [{\\\"claim\\\": \\\"The Raspberry Pi 6 costs $80\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"Raspberry Pi 6 is available today, priced at $80\\\"}, {\\\"claim\\\": \\\"It has 16 GB of RAM\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"ships with 16 GB of LPDDR5 RAM\\\"}, {\\\"claim\\\": \\\"It is about twice as fast as the Pi 5 on CPU work\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"roughly double the Pi 5 in our CPU benchmarks\\\"}, {\\\"claim\\\": \\\"It needs a 45 W USB-C supply for full speed\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"a 45W USB-C supply is required to run at full clock\\\"}], \\\"sources\\\": [{\\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"publisher\\\": \\\"Raspberry Pi\\\"}, {\\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"title\\\": \\\"Pi 6 review\\\", \\\"publisher\\\": \\\"Ars Technica\\\"}], \\\"primary_url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}</brief>\\n<source url=\\\"https://www.raspberrypi.com/news/pi6\\\">Raspberry Pi 6 is available today, priced at $80. More text about the board.</source>\\n<source url=\\\"https://www.raspberrypi.com/news/pi6\\\">ships with 16 GB of LPDDR5 RAM. More text about the board.</source>\\n<source url=\\\"https://arstechnica.com/gadgets/pi6-review\\\">roughly double the Pi 5 in our CPU benchmarks. More text about the board.</source>\\n<source url=\\\"https://arstechnica.com/gadgets/pi6-review\\\">a 45W USB-C supply is required to run at full clock. More text about the board.</source>\\n\",\"expect\":\"{\\\"pass\\\": true}\",\"provider\":\"\"}].map((r) => ({ json: r }));"
       },
-      "id": "11573acb-89c3-3fbd-8e37-068193a3d7e4",
+      "id": "ab81e7ac-272a-73b1-8eb0-33dd98075702",
       "position": [
         2860,
         0
@@ -327,7 +327,7 @@
         },
         "options": {}
       },
-      "id": "a0ca0333-66c0-0243-df76-d8819fffc97d",
+      "id": "42347651-833f-42aa-990f-66d2614b843a",
       "position": [
         3120,
         0
@@ -370,7 +370,7 @@
         }
       },
       "executeOnce": true,
-      "id": "f97213a1-71ff-715c-a8f1-60efd1383405",
+      "id": "85371200-4cb6-1e32-a3b5-39806d25e809",
       "position": [
         3380,
         0
@@ -390,7 +390,7 @@
         }
       },
       "executeOnce": true,
-      "id": "1ea0f97d-b473-530f-6ef8-1bccacdbe8cd",
+      "id": "1bf0adb2-0d6d-799f-bc8e-a10b9ceb5e09",
       "position": [
         3640,
         0
@@ -405,7 +405,7 @@
         "language": "javaScript",
         "jsCode": "// Fixture rows from tests/agents/editor.json, embedded by scripts/wfgen at build time.\nreturn [{\"name\":\"unsourced claim refused\",\"prompt\":\"editor\",\"input\":\"<script>{\\\"title\\\": \\\"The Pi 6 is twice as fast for $80\\\", \\\"hook\\\": \\\"Your next home server might cost less than a video game.\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"fact_ids\\\": [0], \\\"visual_hint\\\": \\\"Pi 6 board on a desk\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"fact_ids\\\": [1], \\\"visual_hint\\\": \\\"card: 16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"fact_ids\\\": [2], \\\"visual_hint\\\": \\\"benchmark bars\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"fact_ids\\\": [3], \\\"visual_hint\\\": \\\"USB-C charger\\\"}], \\\"description\\\": \\\"The Raspberry Pi 6 is out: 16 GB of RAM, about twice the speed of the Pi 5, for $80.\\\", \\\"tags\\\": [\\\"raspberry pi\\\", \\\"pi 6\\\", \\\"home server\\\"]}</script>\\n<owner_notes>Add that the Pi 6 has a built-in AI chip that beats a gaming PC.</owner_notes>\\n<brief>{\\\"topic\\\": \\\"Raspberry Pi 6 launch\\\", \\\"angle\\\": \\\"what changed for hobbyists\\\", \\\"shelf_life_days\\\": 30, \\\"facts\\\": [{\\\"claim\\\": \\\"The Raspberry Pi 6 costs $80\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"Raspberry Pi 6 is available today, priced at $80\\\"}, {\\\"claim\\\": \\\"It has 16 GB of RAM\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"ships with 16 GB of LPDDR5 RAM\\\"}, {\\\"claim\\\": \\\"It is about twice as fast as the Pi 5 on CPU work\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"roughly double the Pi 5 in our CPU benchmarks\\\"}, {\\\"claim\\\": \\\"It needs a 45 W USB-C supply for full speed\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"a 45W USB-C supply is required to run at full clock\\\"}], \\\"sources\\\": [{\\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"publisher\\\": \\\"Raspberry Pi\\\"}, {\\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"title\\\": \\\"Pi 6 review\\\", \\\"publisher\\\": \\\"Ars Technica\\\"}], \\\"primary_url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}</brief>\",\"expect\":\"{\\\"absent\\\": [\\\"gaming PC\\\", \\\"AI chip\\\"], \\\"notes_mention\\\": [\\\"refus|not|unsourced|no source|left out|could not|can't|cannot\\\"]}\",\"provider\":\"\"},{\"name\":\"title change applied\",\"prompt\":\"editor\",\"input\":\"<script>{\\\"title\\\": \\\"The Pi 6 is twice as fast for $80\\\", \\\"hook\\\": \\\"Your next home server might cost less than a video game.\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"fact_ids\\\": [0], \\\"visual_hint\\\": \\\"Pi 6 board on a desk\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"fact_ids\\\": [1], \\\"visual_hint\\\": \\\"card: 16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"fact_ids\\\": [2], \\\"visual_hint\\\": \\\"benchmark bars\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"fact_ids\\\": [3], \\\"visual_hint\\\": \\\"USB-C charger\\\"}], \\\"description\\\": \\\"The Raspberry Pi 6 is out: 16 GB of RAM, about twice the speed of the Pi 5, for $80.\\\", \\\"tags\\\": [\\\"raspberry pi\\\", \\\"pi 6\\\", \\\"home server\\\"]}</script>\\n<owner_notes>Make the title shorter, under 40 characters.</owner_notes>\\n<brief>{\\\"topic\\\": \\\"Raspberry Pi 6 launch\\\", \\\"angle\\\": \\\"what changed for hobbyists\\\", \\\"shelf_life_days\\\": 30, \\\"facts\\\": [{\\\"claim\\\": \\\"The Raspberry Pi 6 costs $80\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"Raspberry Pi 6 is available today, priced at $80\\\"}, {\\\"claim\\\": \\\"It has 16 GB of RAM\\\", \\\"source_url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"quote\\\": \\\"ships with 16 GB of LPDDR5 RAM\\\"}, {\\\"claim\\\": \\\"It is about twice as fast as the Pi 5 on CPU work\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"roughly double the Pi 5 in our CPU benchmarks\\\"}, {\\\"claim\\\": \\\"It needs a 45 W USB-C supply for full speed\\\", \\\"source_url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"quote\\\": \\\"a 45W USB-C supply is required to run at full clock\\\"}], \\\"sources\\\": [{\\\"url\\\": \\\"https://www.raspberrypi.com/news/pi6\\\", \\\"title\\\": \\\"Raspberry Pi 6 on sale now\\\", \\\"publisher\\\": \\\"Raspberry Pi\\\"}, {\\\"url\\\": \\\"https://arstechnica.com/gadgets/pi6-review\\\", \\\"title\\\": \\\"Pi 6 review\\\", \\\"publisher\\\": \\\"Ars Technica\\\"}], \\\"primary_url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}</brief>\",\"expect\":\"{\\\"title_max\\\": 40, \\\"words\\\": [90, 140]}\",\"provider\":\"\"}].map((r) => ({ json: r }));"
       },
-      "id": "e6a58d2a-b68f-13ae-3651-77fa60a0a6ff",
+      "id": "11573acb-89c3-3fbd-8e37-068193a3d7e4",
       "position": [
         3900,
         0
@@ -433,7 +433,7 @@
         },
         "options": {}
       },
-      "id": "60542ded-ee3b-dc84-17d5-74158924fb5d",
+      "id": "a0ca0333-66c0-0243-df76-d8819fffc97d",
       "position": [
         4160,
         0
@@ -476,7 +476,7 @@
         }
       },
       "executeOnce": true,
-      "id": "070bf606-5e60-2fe9-9e29-12e90eb907dc",
+      "id": "f97213a1-71ff-715c-a8f1-60efd1383405",
       "position": [
         4420,
         0
@@ -496,7 +496,7 @@
         }
       },
       "executeOnce": true,
-      "id": "eb01024b-913c-dcaa-1af0-78e53c9796b6",
+      "id": "1ea0f97d-b473-530f-6ef8-1bccacdbe8cd",
       "position": [
         4680,
         0
@@ -511,7 +511,7 @@
         "language": "javaScript",
         "jsCode": "// Fixture rows from tests/agents/director.json, embedded by scripts/wfgen at build time.\nreturn [{\"name\":\"screenshot only primary_url\",\"prompt\":\"director\",\"input\":\"<script>{\\\"title\\\": \\\"The Pi 6 is twice as fast for $80\\\", \\\"hook\\\": \\\"Your next home server might cost less than a video game.\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"fact_ids\\\": [0], \\\"visual_hint\\\": \\\"Pi 6 board on a desk\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"fact_ids\\\": [1], \\\"visual_hint\\\": \\\"card: 16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"fact_ids\\\": [2], \\\"visual_hint\\\": \\\"benchmark bars\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"fact_ids\\\": [3], \\\"visual_hint\\\": \\\"USB-C charger\\\"}], \\\"description\\\": \\\"The Raspberry Pi 6 is out: 16 GB of RAM, about twice the speed of the Pi 5, for $80.\\\", \\\"tags\\\": [\\\"raspberry pi\\\", \\\"pi 6\\\", \\\"home server\\\"]}</script>\\n<primary_url>https://github.com/raspberrypi/pi6-docs</primary_url>\\n<music_moods>[\\\"upbeat\\\",\\\"calm\\\"]</music_moods>\",\"expect\":\"{\\\"screenshot_only\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\", \\\"no_repeat_stock\\\": true, \\\"narration_from\\\": [\\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\"], \\\"mood_in\\\": [\\\"upbeat\\\", \\\"calm\\\"]}\",\"provider\":\"\"},{\"name\":\"no primary_url\",\"prompt\":\"director\",\"input\":\"<script>{\\\"title\\\": \\\"The Pi 6 is twice as fast for $80\\\", \\\"hook\\\": \\\"Your next home server might cost less than a video game.\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"fact_ids\\\": [0], \\\"visual_hint\\\": \\\"Pi 6 board on a desk\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"fact_ids\\\": [1], \\\"visual_hint\\\": \\\"card: 16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"fact_ids\\\": [2], \\\"visual_hint\\\": \\\"benchmark bars\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"fact_ids\\\": [3], \\\"visual_hint\\\": \\\"USB-C charger\\\"}], \\\"description\\\": \\\"The Raspberry Pi 6 is out: 16 GB of RAM, about twice the speed of the Pi 5, for $80.\\\", \\\"tags\\\": [\\\"raspberry pi\\\", \\\"pi 6\\\", \\\"home server\\\"]}</script>\\n<primary_url>none</primary_url>\\n<music_moods>[\\\"calm\\\"]</music_moods>\",\"expect\":\"{\\\"screenshot_only\\\": null, \\\"no_repeat_stock\\\": true, \\\"mood_in\\\": [\\\"calm\\\"]}\",\"provider\":\"\"}].map((r) => ({ json: r }));"
       },
-      "id": "f932884b-561c-39f1-f8fa-f33a6f27e7aa",
+      "id": "e6a58d2a-b68f-13ae-3651-77fa60a0a6ff",
       "position": [
         4940,
         0
@@ -539,7 +539,7 @@
         },
         "options": {}
       },
-      "id": "59aab9d5-20c3-8e7b-a3d0-673dae11af7a",
+      "id": "60542ded-ee3b-dc84-17d5-74158924fb5d",
       "position": [
         5200,
         0
@@ -582,7 +582,7 @@
         }
       },
       "executeOnce": true,
-      "id": "0e68285f-019b-35c7-7839-540c0e254f30",
+      "id": "070bf606-5e60-2fe9-9e29-12e90eb907dc",
       "position": [
         5460,
         0
@@ -602,7 +602,7 @@
         }
       },
       "executeOnce": true,
-      "id": "6d1963e3-f256-87cc-d373-1c97910adf96",
+      "id": "eb01024b-913c-dcaa-1af0-78e53c9796b6",
       "position": [
         5720,
         0
@@ -617,7 +617,7 @@
         "language": "javaScript",
         "jsCode": "// Fixture rows from tests/agents/cutter.json, embedded by scripts/wfgen at build time.\nreturn [{\"name\":\"visual notes keep narration\",\"prompt\":\"cutter\",\"input\":\"<plan>{\\\"voice\\\": \\\"af_heart\\\", \\\"speed\\\": 1.05, \\\"music_mood\\\": \\\"upbeat\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"visual\\\": {\\\"type\\\": \\\"stock\\\", \\\"query\\\": \\\"raspberry pi board\\\", \\\"text\\\": \\\"\\\", \\\"url\\\": \\\"\\\"}, \\\"on_screen_text\\\": \\\"Pi 6 is here\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"visual\\\": {\\\"type\\\": \\\"card\\\", \\\"query\\\": \\\"\\\", \\\"text\\\": \\\"16 GB RAM\\\", \\\"url\\\": \\\"\\\"}, \\\"on_screen_text\\\": \\\"16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"visual\\\": {\\\"type\\\": \\\"stock\\\", \\\"query\\\": \\\"fast computer code\\\", \\\"text\\\": \\\"\\\", \\\"url\\\": \\\"\\\"}, \\\"on_screen_text\\\": \\\"2x faster\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"visual\\\": {\\\"type\\\": \\\"screenshot\\\", \\\"query\\\": \\\"\\\", \\\"text\\\": \\\"\\\", \\\"url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}, \\\"on_screen_text\\\": \\\"Use a 45 W plug\\\"}]}</plan>\\n<owner_notes>Use a card instead of the stock clip in scene 3, and calmer music.</owner_notes>\\n<primary_url>https://github.com/raspberrypi/pi6-docs</primary_url>\",\"expect\":\"{\\\"narration_from\\\": [\\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\"], \\\"narration_change_empty\\\": true}\",\"provider\":\"\"},{\"name\":\"narration note passed on\",\"prompt\":\"cutter\",\"input\":\"<plan>{\\\"voice\\\": \\\"af_heart\\\", \\\"speed\\\": 1.05, \\\"music_mood\\\": \\\"upbeat\\\", \\\"scenes\\\": [{\\\"id\\\": 1, \\\"narration\\\": \\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"visual\\\": {\\\"type\\\": \\\"stock\\\", \\\"query\\\": \\\"raspberry pi board\\\", \\\"text\\\": \\\"\\\", \\\"url\\\": \\\"\\\"}, \\\"on_screen_text\\\": \\\"Pi 6 is here\\\"}, {\\\"id\\\": 2, \\\"narration\\\": \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"visual\\\": {\\\"type\\\": \\\"card\\\", \\\"query\\\": \\\"\\\", \\\"text\\\": \\\"16 GB RAM\\\", \\\"url\\\": \\\"\\\"}, \\\"on_screen_text\\\": \\\"16 GB RAM\\\"}, {\\\"id\\\": 3, \\\"narration\\\": \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"visual\\\": {\\\"type\\\": \\\"stock\\\", \\\"query\\\": \\\"fast computer code\\\", \\\"text\\\": \\\"\\\", \\\"url\\\": \\\"\\\"}, \\\"on_screen_text\\\": \\\"2x faster\\\"}, {\\\"id\\\": 4, \\\"narration\\\": \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\", \\\"visual\\\": {\\\"type\\\": \\\"screenshot\\\", \\\"query\\\": \\\"\\\", \\\"text\\\": \\\"\\\", \\\"url\\\": \\\"https://github.com/raspberrypi/pi6-docs\\\"}, \\\"on_screen_text\\\": \\\"Use a 45 W plug\\\"}]}</plan>\\n<owner_notes>Say in scene 2 that it also has WiFi 7.</owner_notes>\\n<primary_url>https://github.com/raspberrypi/pi6-docs</primary_url>\",\"expect\":\"{\\\"narration_from\\\": [\\\"Your next home server might cost less than a video game. The new Raspberry Pi 6 sells for eighty dollars, and it is a big jump.\\\", \\\"It ships with sixteen gigabytes of memory. That is enough to run a media server, a small database and a few home tools at the same time without it choking.\\\", \\\"Reviewers measured roughly double the speed of the Pi 5 on processor work, so builds and scripts that used to crawl now finish while you get a coffee.\\\", \\\"One catch: you need a forty five watt USB C charger to get full speed. Your old phone charger will hold it back. Cheap power, real computer, just buy the right plug.\\\"], \\\"narration_change_empty\\\": false}\",\"provider\":\"\"}].map((r) => ({ json: r }));"
       },
-      "id": "6d6f4b73-8015-b034-54c2-085ccb940aae",
+      "id": "f932884b-561c-39f1-f8fa-f33a6f27e7aa",
       "position": [
         5980,
         0
@@ -645,7 +645,7 @@
         },
         "options": {}
       },
-      "id": "2f08bc54-72e6-90e5-86ad-4ff94634c41e",
+      "id": "59aab9d5-20c3-8e7b-a3d0-673dae11af7a",
       "position": [
         6240,
         0
@@ -688,7 +688,7 @@
         }
       },
       "executeOnce": true,
-      "id": "11ac3b00-9dbd-e042-9be2-b44bd83769e8",
+      "id": "0e68285f-019b-35c7-7839-540c0e254f30",
       "position": [
         6500,
         0
@@ -708,7 +708,7 @@
         }
       },
       "executeOnce": true,
-      "id": "22473aec-451f-1f77-d7bc-04bd32cd0e40",
+      "id": "6d1963e3-f256-87cc-d373-1c97910adf96",
       "position": [
         6760,
         0
@@ -723,7 +723,7 @@
         "language": "javaScript",
         "jsCode": "// Fixture rows from tests/agents/scheduler.json, embedded by scripts/wfgen at build time.\nreturn [{\"name\":\"rules hold\",\"prompt\":\"scheduler\",\"input\":\"<stats>[{\\\"time\\\": \\\"12:00\\\", \\\"weekday\\\": \\\"mon\\\", \\\"videos\\\": 3, \\\"median_views_48h\\\": 800, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"15:00\\\", \\\"weekday\\\": \\\"mon\\\", \\\"videos\\\": 6, \\\"median_views_48h\\\": 1500, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"18:00\\\", \\\"weekday\\\": \\\"mon\\\", \\\"videos\\\": 8, \\\"median_views_48h\\\": 2600, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"21:00\\\", \\\"weekday\\\": \\\"mon\\\", \\\"videos\\\": 5, \\\"median_views_48h\\\": 2000, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"12:00\\\", \\\"weekday\\\": \\\"tue\\\", \\\"videos\\\": 3, \\\"median_views_48h\\\": 800, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"15:00\\\", \\\"weekday\\\": \\\"tue\\\", \\\"videos\\\": 6, \\\"median_views_48h\\\": 1500, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"18:00\\\", \\\"weekday\\\": \\\"tue\\\", \\\"videos\\\": 8, \\\"median_views_48h\\\": 2600, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"21:00\\\", \\\"weekday\\\": \\\"tue\\\", \\\"videos\\\": 5, \\\"median_views_48h\\\": 2000, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"12:00\\\", \\\"weekday\\\": \\\"wed\\\", \\\"videos\\\": 3, \\\"median_views_48h\\\": 800, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"15:00\\\", \\\"weekday\\\": \\\"wed\\\", \\\"videos\\\": 6, \\\"median_views_48h\\\": 1500, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"18:00\\\", \\\"weekday\\\": \\\"wed\\\", \\\"videos\\\": 8, \\\"median_views_48h\\\": 2600, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"21:00\\\", \\\"weekday\\\": \\\"wed\\\", \\\"videos\\\": 5, \\\"median_views_48h\\\": 2000, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"12:00\\\", \\\"weekday\\\": \\\"thu\\\", \\\"videos\\\": 3, \\\"median_views_48h\\\": 800, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"15:00\\\", \\\"weekday\\\": \\\"thu\\\", \\\"videos\\\": 6, \\\"median_views_48h\\\": 1500, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"18:00\\\", \\\"weekday\\\": \\\"thu\\\", \\\"videos\\\": 8, \\\"median_views_48h\\\": 2600, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"21:00\\\", \\\"weekday\\\": \\\"thu\\\", \\\"videos\\\": 5, \\\"median_views_48h\\\": 2000, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"12:00\\\", \\\"weekday\\\": \\\"fri\\\", \\\"videos\\\": 3, \\\"median_views_48h\\\": 800, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"15:00\\\", \\\"weekday\\\": \\\"fri\\\", \\\"videos\\\": 6, \\\"median_views_48h\\\": 1500, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"18:00\\\", \\\"weekday\\\": \\\"fri\\\", \\\"videos\\\": 8, \\\"median_views_48h\\\": 2600, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"21:00\\\", \\\"weekday\\\": \\\"fri\\\", \\\"videos\\\": 5, \\\"median_views_48h\\\": 2000, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"12:00\\\", \\\"weekday\\\": \\\"sat\\\", \\\"videos\\\": 3, \\\"median_views_48h\\\": 800, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"15:00\\\", \\\"weekday\\\": \\\"sat\\\", \\\"videos\\\": 6, \\\"median_views_48h\\\": 1500, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"18:00\\\", \\\"weekday\\\": \\\"sat\\\", \\\"videos\\\": 8, \\\"median_views_48h\\\": 2600, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"21:00\\\", \\\"weekday\\\": \\\"sat\\\", \\\"videos\\\": 5, \\\"median_views_48h\\\": 2000, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"12:00\\\", \\\"weekday\\\": \\\"sun\\\", \\\"videos\\\": 3, \\\"median_views_48h\\\": 800, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"15:00\\\", \\\"weekday\\\": \\\"sun\\\", \\\"videos\\\": 6, \\\"median_views_48h\\\": 1500, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"18:00\\\", \\\"weekday\\\": \\\"sun\\\", \\\"videos\\\": 8, \\\"median_views_48h\\\": 2600, \\\"engagement\\\": 0.04}, {\\\"time\\\": \\\"21:00\\\", \\\"weekday\\\": \\\"sun\\\", \\\"videos\\\": 5, \\\"median_views_48h\\\": 2000, \\\"engagement\\\": 0.04}]</stats>\\n<current_schedule>{\\\"mon\\\": \\\"18:00\\\", \\\"tue\\\": \\\"18:00\\\", \\\"wed\\\": \\\"18:00\\\", \\\"thu\\\": \\\"18:00\\\", \\\"fri\\\": \\\"18:00\\\", \\\"sat\\\": \\\"18:00\\\", \\\"sun\\\": \\\"18:00\\\"}</current_schedule>\\n<candidates>[\\\"12:00\\\",\\\"15:00\\\",\\\"18:00\\\",\\\"21:00\\\"]</candidates>\",\"expect\":\"{\\\"candidates\\\": [\\\"12:00\\\", \\\"15:00\\\", \\\"18:00\\\", \\\"21:00\\\"], \\\"current\\\": {\\\"mon\\\": \\\"18:00\\\", \\\"tue\\\": \\\"18:00\\\", \\\"wed\\\": \\\"18:00\\\", \\\"thu\\\": \\\"18:00\\\", \\\"fri\\\": \\\"18:00\\\", \\\"sat\\\": \\\"18:00\\\", \\\"sun\\\": \\\"18:00\\\"}, \\\"max_changes\\\": 2}\",\"provider\":\"\"}].map((r) => ({ json: r }));"
       },
-      "id": "0a965a3b-957e-9541-b340-66c2ce9802c6",
+      "id": "6d6f4b73-8015-b034-54c2-085ccb940aae",
       "position": [
         7020,
         0
@@ -751,7 +751,7 @@
         },
         "options": {}
       },
-      "id": "f19a698d-3321-ef65-a64f-ff5956a160be",
+      "id": "2f08bc54-72e6-90e5-86ad-4ff94634c41e",
       "position": [
         7280,
         0

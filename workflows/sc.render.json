@@ -18,7 +18,7 @@
           ]
         }
       },
-      "id": "c17a7f2c-6db2-4fa8-1be3-1a08caaa2a79",
+      "id": "a9f5b882-b278-ffb5-9bcc-d5d4b67c8738",
       "position": [
         0,
         0
@@ -39,7 +39,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "4fa19bee-adaf-c3dd-8cad-9cb3a4c797d7",
+      "id": "97f1a70a-ab6e-2795-41f0-4678f9a822fe",
       "position": [
         260,
         0
@@ -62,7 +62,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "df814548-9713-88b2-0d68-d1ce9df099ea",
+      "id": "8c32e9ce-cc03-2cc7-a256-fd6a48960d8b",
       "position": [
         10660,
         0
@@ -83,7 +83,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "cd290340-c0ed-ac13-5d06-296aed998430",
+      "id": "4160ab64-70ca-16b9-3d35-0e6109a038e5",
       "position": [
         780,
         0
@@ -176,7 +176,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "2646d5ab-b2b1-b635-7b04-f56cc21da9bc",
+      "id": "c17a7f2c-6db2-4fa8-1be3-1a08caaa2a79",
       "position": [
         1040,
         0
@@ -275,7 +275,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "5019e0c5-35b2-40f0-4e0b-4d9ca7bfc071",
+      "id": "4fa19bee-adaf-c3dd-8cad-9cb3a4c797d7",
       "position": [
         1300,
         0
@@ -290,7 +290,7 @@
         "language": "javaScript",
         "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Editor notes').first().json.json;\nconst brief = $('Claim').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
       },
-      "id": "0e8e3d57-73b2-f906-a179-f7123dfd82a7",
+      "id": "df814548-9713-88b2-0d68-d1ce9df099ea",
       "position": [
         1560,
         0
@@ -389,7 +389,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "cff96c54-d195-0020-50e1-3d99d21599b3",
+      "id": "cd290340-c0ed-ac13-5d06-296aed998430",
       "position": [
         1820,
         0
@@ -404,7 +404,7 @@
         "language": "javaScript",
         "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules notes').first().json.rules;\nconst script = $('Editor notes').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'editor', writer_provider: $('Editor notes').first().json.provider, checker_provider: c.provider } }];"
       },
-      "id": "9347bf86-4a82-a6ae-ccf4-1f774671904c",
+      "id": "2646d5ab-b2b1-b635-7b04-f56cc21da9bc",
       "position": [
         2080,
         0
@@ -439,7 +439,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "000f55a1-d0b2-d4f5-4a8b-29614d1f4aab",
+      "id": "5019e0c5-35b2-40f0-4e0b-4d9ca7bfc071",
       "position": [
         2340,
         0
@@ -538,7 +538,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "ba62eca7-f854-9c6b-9030-bcf9df422733",
+      "id": "0e8e3d57-73b2-f906-a179-f7123dfd82a7",
       "position": [
         1300,
         220
@@ -573,7 +573,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "328f1445-b449-030b-417f-b6d3169a1047",
+      "id": "cff96c54-d195-0020-50e1-3d99d21599b3",
       "position": [
         1560,
         220
@@ -672,7 +672,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "73a04af7-7591-9a2e-a605-0c26db3f1bab",
+      "id": "9347bf86-4a82-a6ae-ccf4-1f774671904c",
       "position": [
         1820,
         220
@@ -687,7 +687,7 @@
         "language": "javaScript",
         "jsCode": "// No node counts words or checks fact ids against the brief.\nconst s = $('Editor video').first().json.json;\nconst brief = $('Claim').first().json.brief;\nconst words = (s.scenes ?? []).map((x) => x.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\nconst rules = [];\nif (words < 90 || words > 140) rules.push('narration is ' + words + ' words; it must be 90-140');\nif (String(s.title ?? '').length > 70) rules.push('title is longer than 70 characters');\nconst nf = (brief.facts ?? []).length;\nfor (const sc of s.scenes ?? []) for (const f of sc.fact_ids ?? []) if (!(Number.isInteger(f) && f >= 0 && f < nf)) rules.push('scene ' + sc.id + ' cites fact ' + f + ', which the brief does not have');\nreturn [{ json: { rules, words } }];"
       },
-      "id": "ea3084c6-a2f4-54b9-fa35-d8901f2768cc",
+      "id": "000f55a1-d0b2-d4f5-4a8b-29614d1f4aab",
       "position": [
         2080,
         220
@@ -786,7 +786,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "139fbd21-d246-1752-6037-843a4266ac47",
+      "id": "ba62eca7-f854-9c6b-9030-bcf9df422733",
       "position": [
         2340,
         220
@@ -801,7 +801,7 @@
         "language": "javaScript",
         "jsCode": "// No node merges the Checker's JSON with the code rule checks.\nconst c = $input.first().json;\nconst rules = $('Rules video').first().json.rules;\nconst script = $('Editor video').first().json.json;\nconst pass = c.json?.pass === true && rules.length === 0;\nconst flags = [...(c.json?.unsupported_claims ?? []), ...(c.json?.policy_issues ?? []), ...rules].map(String);\nreturn [{ json: { script, check: { ...c.json, rules, pass }, pass, flags,\n  writer_agent: 'editor', writer_provider: $('Editor video').first().json.provider, checker_provider: c.provider } }];"
       },
-      "id": "12f4f692-57b2-3833-b03c-8403b8fafca8",
+      "id": "328f1445-b449-030b-417f-b6d3169a1047",
       "position": [
         2600,
         0
@@ -836,7 +836,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "ff5ac989-1af9-61b2-a168-57aa6ab45c3e",
+      "id": "73a04af7-7591-9a2e-a605-0c26db3f1bab",
       "position": [
         2860,
         0
@@ -860,7 +860,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "0b858886-3497-4c87-61d3-044ff1a1a494",
+      "id": "ea3084c6-a2f4-54b9-fa35-d8901f2768cc",
       "position": [
         3120,
         0
@@ -925,7 +925,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "id": "6635e65a-d787-d12c-e069-97ff0e19bc9b",
+      "id": "139fbd21-d246-1752-6037-843a4266ac47",
       "position": [
         3640,
         0
@@ -936,7 +936,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "parameters": {},
-      "id": "7f4e87c0-cf6a-8923-a2f9-89a972c970c3",
+      "id": "12f4f692-57b2-3833-b03c-8403b8fafca8",
       "position": [
         3380,
         0
@@ -967,7 +967,7 @@
         },
         "options": {}
       },
-      "id": "6cd0c5cc-0d5f-e8ad-29ef-1ca70c0a072d",
+      "id": "ff5ac989-1af9-61b2-a168-57aa6ab45c3e",
       "position": [
         2600,
         220
@@ -998,7 +998,7 @@
         },
         "options": {}
       },
-      "id": "ba399707-38a7-fb54-8f32-92439dd85848",
+      "id": "0b858886-3497-4c87-61d3-044ff1a1a494",
       "position": [
         1300,
         440
@@ -1029,7 +1029,7 @@
         },
         "options": {}
       },
-      "id": "8c275b7d-3f16-a709-e486-e6567aaa3477",
+      "id": "6635e65a-d787-d12c-e069-97ff0e19bc9b",
       "position": [
         3120,
         220
@@ -1128,7 +1128,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "46d3ac05-2318-280e-e414-6e8d30cb19e8",
+      "id": "7f4e87c0-cf6a-8923-a2f9-89a972c970c3",
       "position": [
         3640,
         220
@@ -1143,7 +1143,7 @@
         "language": "javaScript",
         "jsCode": "// No node rewrites a model's plan against the checked script.\nconst plan = $input.first().json.json ?? {};\nconst script = $('Director input').first().json.script;\nconst primary = $('Claim').first().json.brief?.primary_url ?? null;\nconst moods = $('Renderer').first().json.moods ?? [];\nconst warnings = [];\nconst byId = new Map((plan.scenes ?? []).map((s) => [s.id, s]));\nconst scenes = (script.scenes ?? []).map((s, i) => {\n  const p = byId.get(s.id) ?? plan.scenes?.[i] ?? {};\n  let v = p.visual ?? { type: 'card', text: '' };\n  if (v.type === 'screenshot' && (!primary || v.url !== primary)) { warnings.push('scene ' + s.id + ': screenshot of ' + v.url + ' replaced by a card'); v = { type: 'card', text: p.on_screen_text || s.narration.split(/\\s+/).slice(0, 6).join(' ') }; }\n  if (!['stock', 'card', 'screenshot'].includes(v.type)) v = { type: 'card', text: p.on_screen_text ?? '' };\n  return { id: s.id, narration: s.narration, visual: { type: v.type, query: String(v.query ?? '').slice(0, 200), text: String(v.text ?? '').slice(0, 300), url: v.type === 'screenshot' ? primary : '' }, on_screen_text: String(p.on_screen_text ?? '').slice(0, 120) };\n});\nlet mood = plan.music_mood;\nif (!moods.includes(mood)) { if (!moods.length) throw new Error('the renderer lists no music moods: add folders to assets/music/'); warnings.push('music_mood ' + mood + ' is not a folder; using ' + moods[0]); mood = moods[0]; }\nconst speed = Math.min(1.3, Math.max(0.8, Number(plan.speed) || 1.05));\nreturn [{ json: { plan: { voice: String(plan.voice ?? 'af_heart'), speed, music_mood: mood, scenes }, script, plan_warnings: warnings } }];"
       },
-      "id": "b81dd896-6ff3-d837-ace1-069db16cdd23",
+      "id": "6cd0c5cc-0d5f-e8ad-29ef-1ca70c0a072d",
       "position": [
         3900,
         0
@@ -1158,7 +1158,7 @@
         "language": "javaScript",
         "jsCode": "// No node rewrites a model's plan against the checked script.\nconst plan = $('Cutter').first().json.json ?? {};\nconst script = $('Claim').first().json.script;\nconst primary = $('Claim').first().json.brief?.primary_url ?? null;\nconst moods = $('Renderer').first().json.moods ?? [];\nconst warnings = [];\nconst byId = new Map((plan.scenes ?? []).map((s) => [s.id, s]));\nconst scenes = (script.scenes ?? []).map((s, i) => {\n  const p = byId.get(s.id) ?? plan.scenes?.[i] ?? {};\n  let v = p.visual ?? { type: 'card', text: '' };\n  if (v.type === 'screenshot' && (!primary || v.url !== primary)) { warnings.push('scene ' + s.id + ': screenshot of ' + v.url + ' replaced by a card'); v = { type: 'card', text: p.on_screen_text || s.narration.split(/\\s+/).slice(0, 6).join(' ') }; }\n  if (!['stock', 'card', 'screenshot'].includes(v.type)) v = { type: 'card', text: p.on_screen_text ?? '' };\n  return { id: s.id, narration: s.narration, visual: { type: v.type, query: String(v.query ?? '').slice(0, 200), text: String(v.text ?? '').slice(0, 300), url: v.type === 'screenshot' ? primary : '' }, on_screen_text: String(p.on_screen_text ?? '').slice(0, 120) };\n});\nlet mood = plan.music_mood;\nif (!moods.includes(mood)) { if (!moods.length) throw new Error('the renderer lists no music moods: add folders to assets/music/'); warnings.push('music_mood ' + mood + ' is not a folder; using ' + moods[0]); mood = moods[0]; }\nconst speed = Math.min(1.3, Math.max(0.8, Number(plan.speed) || 1.05));\nreturn [{ json: { plan: { voice: String(plan.voice ?? 'af_heart'), speed, music_mood: mood, scenes }, script, plan_warnings: warnings } }];"
       },
-      "id": "953a4144-9c54-da27-1626-82b94fc6a78c",
+      "id": "ba399707-38a7-fb54-8f32-92439dd85848",
       "position": [
         1820,
         440
@@ -1201,7 +1201,7 @@
         },
         "options": {}
       },
-      "id": "4a5af621-b80d-2e10-56cc-a8fc0a708d02",
+      "id": "8c275b7d-3f16-a709-e486-e6567aaa3477",
       "position": [
         4160,
         0
@@ -1225,7 +1225,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "052ff6a2-9a4f-d691-510f-91201c6402a9",
+      "id": "46d3ac05-2318-280e-e414-6e8d30cb19e8",
       "position": [
         4420,
         0
@@ -1247,7 +1247,7 @@
       },
       "onError": "continueRegularOutput",
       "alwaysOutputData": true,
-      "id": "5a82048d-589d-69ab-4208-886d34bce4bb",
+      "id": "b81dd896-6ff3-d837-ace1-069db16cdd23",
       "position": [
         4680,
         0
@@ -1268,7 +1268,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "8cc91f8d-6a20-084a-1212-cfcbdc2c1699",
+      "id": "953a4144-9c54-da27-1626-82b94fc6a78c",
       "position": [
         4940,
         0
@@ -1291,7 +1291,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "82d070e2-963a-f374-c3bb-d4f8d23dca54",
+      "id": "4a5af621-b80d-2e10-56cc-a8fc0a708d02",
       "position": [
         5200,
         0
@@ -1325,7 +1325,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "d6dfd162-ce5e-b967-cffc-1033a13e445c",
+      "id": "052ff6a2-9a4f-d691-510f-91201c6402a9",
       "position": [
         5460,
         0
@@ -1402,7 +1402,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "801c7361-8446-9268-9749-b4723cffacd0",
+      "id": "5a82048d-589d-69ab-4208-886d34bce4bb",
       "position": [
         5720,
         0
@@ -1437,7 +1437,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "69aa196a-577f-41fd-6ec3-abd5c7bac011",
+      "id": "8cc91f8d-6a20-084a-1212-cfcbdc2c1699",
       "position": [
         5980,
         0
@@ -1536,7 +1536,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "5c636321-8f02-5a77-652f-76de7b64aac1",
+      "id": "82d070e2-963a-f374-c3bb-d4f8d23dca54",
       "position": [
         6240,
         0
@@ -1551,7 +1551,7 @@
         "language": "javaScript",
         "jsCode": "// No node rewrites a model's plan against the checked script.\nconst plan = $input.first().json.json ?? {};\nconst script = $('Plan ready').first().json.script;\nconst primary = $('Claim').first().json.brief?.primary_url ?? null;\nconst moods = $('Renderer').first().json.moods ?? [];\nconst warnings = [];\nconst byId = new Map((plan.scenes ?? []).map((s) => [s.id, s]));\nconst scenes = (script.scenes ?? []).map((s, i) => {\n  const p = byId.get(s.id) ?? plan.scenes?.[i] ?? {};\n  let v = p.visual ?? { type: 'card', text: '' };\n  if (v.type === 'screenshot' && (!primary || v.url !== primary)) { warnings.push('scene ' + s.id + ': screenshot of ' + v.url + ' replaced by a card'); v = { type: 'card', text: p.on_screen_text || s.narration.split(/\\s+/).slice(0, 6).join(' ') }; }\n  if (!['stock', 'card', 'screenshot'].includes(v.type)) v = { type: 'card', text: p.on_screen_text ?? '' };\n  return { id: s.id, narration: s.narration, visual: { type: v.type, query: String(v.query ?? '').slice(0, 200), text: String(v.text ?? '').slice(0, 300), url: v.type === 'screenshot' ? primary : '' }, on_screen_text: String(p.on_screen_text ?? '').slice(0, 120) };\n});\nlet mood = plan.music_mood;\nif (!moods.includes(mood)) { if (!moods.length) throw new Error('the renderer lists no music moods: add folders to assets/music/'); warnings.push('music_mood ' + mood + ' is not a folder; using ' + moods[0]); mood = moods[0]; }\nconst speed = Math.min(1.3, Math.max(0.8, Number(plan.speed) || 1.05));\nreturn [{ json: { plan: { voice: String(plan.voice ?? 'af_heart'), speed, music_mood: mood, scenes }, script, plan_warnings: warnings } }];"
       },
-      "id": "d2aae5b4-4514-5b01-2332-f5c8e5b03a8d",
+      "id": "d6dfd162-ce5e-b967-cffc-1033a13e445c",
       "position": [
         6500,
         0
@@ -1575,7 +1575,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "e25a1823-be57-c1a9-7ade-d99a6300b7ac",
+      "id": "801c7361-8446-9268-9749-b4723cffacd0",
       "position": [
         6760,
         0
@@ -1597,7 +1597,7 @@
       },
       "onError": "continueRegularOutput",
       "alwaysOutputData": true,
-      "id": "364b2caf-12ef-37e8-0988-0bda4f02cd4c",
+      "id": "69aa196a-577f-41fd-6ec3-abd5c7bac011",
       "position": [
         7020,
         0
@@ -1618,7 +1618,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "0677c918-0b55-a2a0-ccb6-5f8882b68685",
+      "id": "5c636321-8f02-5a77-652f-76de7b64aac1",
       "position": [
         7280,
         0
@@ -1641,7 +1641,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "3b1578cd-efa3-5c8f-cd55-39f00e6bc9a3",
+      "id": "d2aae5b4-4514-5b01-2332-f5c8e5b03a8d",
       "position": [
         7540,
         0
@@ -1678,7 +1678,7 @@
         },
         "options": {}
       },
-      "id": "0e2f044e-0c18-02c5-2f56-81465b00c742",
+      "id": "e25a1823-be57-c1a9-7ade-d99a6300b7ac",
       "position": [
         7800,
         0
@@ -1700,7 +1700,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "5efc9b95-3fb9-10b4-6620-161507b84ff3",
+      "id": "364b2caf-12ef-37e8-0988-0bda4f02cd4c",
       "position": [
         8060,
         0
@@ -1735,7 +1735,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "b8ea0cb8-6450-c4c6-89ea-58da8c1e5406",
+      "id": "0677c918-0b55-a2a0-ccb6-5f8882b68685",
       "position": [
         8320,
         0
@@ -1748,7 +1748,7 @@
       "parameters": {
         "errorMessage": "={{ \"Drive folder ShortCircuit/ready is not known yet: run sc.config once\" }}"
       },
-      "id": "044e217f-8e0e-8edd-d61d-936aa92a665a",
+      "id": "3b1578cd-efa3-5c8f-cd55-39f00e6bc9a3",
       "position": [
         8580,
         0
@@ -1764,7 +1764,7 @@
         "options": {}
       },
       "onError": "continueErrorOutput",
-      "id": "e674728a-bef0-0735-e441-7a45beee45fa",
+      "id": "0e2f044e-0c18-02c5-2f56-81465b00c742",
       "position": [
         8580,
         220
@@ -1799,7 +1799,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "dd0f2b07-ba2c-3bbf-b0ae-2b333e812add",
+      "id": "5efc9b95-3fb9-10b4-6620-161507b84ff3",
       "position": [
         8840,
         0
@@ -1833,7 +1833,7 @@
       "maxTries": 3,
       "waitBetweenTries": 20000,
       "onError": "continueErrorOutput",
-      "id": "2643447b-95fb-1128-095c-23fce338d7af",
+      "id": "b8ea0cb8-6450-c4c6-89ea-58da8c1e5406",
       "position": [
         9100,
         0
@@ -1864,7 +1864,7 @@
       "maxTries": 3,
       "waitBetweenTries": 20000,
       "onError": "continueErrorOutput",
-      "id": "ce4d76e8-a3fc-b351-05e7-f31b5f42d897",
+      "id": "044e217f-8e0e-8edd-d61d-936aa92a665a",
       "position": [
         9100,
         220
@@ -1895,7 +1895,7 @@
         },
         "options": {}
       },
-      "id": "894322d4-67f4-04a8-9949-e4d226abd876",
+      "id": "e674728a-bef0-0735-e441-7a45beee45fa",
       "position": [
         9360,
         0
@@ -1914,7 +1914,7 @@
       },
       "onError": "continueRegularOutput",
       "alwaysOutputData": true,
-      "id": "92d5a312-d97f-ff30-0abf-b82250235d68",
+      "id": "dd0f2b07-ba2c-3bbf-b0ae-2b333e812add",
       "position": [
         9620,
         0
@@ -1942,7 +1942,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "id": "0ca79423-c22a-c80c-e23f-adf78ab1d03a",
+      "id": "2643447b-95fb-1128-095c-23fce338d7af",
       "position": [
         9880,
         0
@@ -1957,7 +1957,7 @@
         "language": "javaScript",
         "jsCode": "// No node HTML-escapes text or builds the Updated video mail.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst j = $('Claim').first().json; const d = $('Drive done').first().json;\nconst slot = $input.first().json.slot_at ?? j.slot_at;\nconst approve = j.status === 'video_editing' && j.edit_then === 'approve';\nconst s = $('Plan ready').first().json.script;\nconst outbox = approve ? { subject: '[' + j.job + '] Updated video — publishes ' + fmt(slot), html: page(j.job + ' · updated video',\n  '<p>Your changes are in. ' + esc(s.title) + ' publishes ' + esc(fmt(slot)) + '; nothing else is needed.</p>' + button(d.drive_link, 'Watch on Drive') + cancelLink(j.id)) } : null;\nreturn [{ json: { status: approve ? 'approved' : 'video_review', outbox } }];"
       },
-      "id": "38ff4ed1-5b95-ab92-3747-3a4b58d10903",
+      "id": "ce4d76e8-a3fc-b351-05e7-f31b5f42d897",
       "position": [
         10140,
         0
@@ -1981,7 +1981,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "65d35d25-cb26-0039-0676-6cd18b1f6b26",
+      "id": "894322d4-67f4-04a8-9949-e4d226abd876",
       "position": [
         10400,
         0
@@ -2015,7 +2015,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "30281959-8a93-8f6b-e237-0f14bef43c89",
+      "id": "92d5a312-d97f-ff30-0abf-b82250235d68",
       "position": [
         10920,
         0
@@ -2080,7 +2080,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "id": "1aa35aeb-6129-d7a1-bd01-ca3ca1a3c008",
+      "id": "0ca79423-c22a-c80c-e23f-adf78ab1d03a",
       "position": [
         11180,
         0
@@ -2124,7 +2124,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "c51b6150-06c6-8846-ff43-dc0cdb2ab95a",
+      "id": "38ff4ed1-5b95-ab92-3747-3a4b58d10903",
       "position": [
         11180,
         220
@@ -2159,7 +2159,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "6e89ff2b-0aa7-c6c9-e5a8-9897574152b5",
+      "id": "65d35d25-cb26-0039-0676-6cd18b1f6b26",
       "position": [
         520,
         0
@@ -2194,7 +2194,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "d1c93f6c-1227-fc14-de8b-c0fc58534feb",
+      "id": "30281959-8a93-8f6b-e237-0f14bef43c89",
       "position": [
         3380,
         220
@@ -2229,7 +2229,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "848661b0-5378-e7d4-1534-24378e0b8760",
+      "id": "1aa35aeb-6129-d7a1-bd01-ca3ca1a3c008",
       "position": [
         10660,
         220

@@ -19,7 +19,7 @@
           ]
         }
       },
-      "id": "05f20922-19f0-2fca-4617-ece86216c3e3",
+      "id": "98ada5b0-ad2c-bbad-eba7-20a82afffb4b",
       "position": [
         0,
         0
@@ -34,7 +34,7 @@
         "language": "javaScript",
         "jsCode": "// No node checks a value against a regex without changing it.\nconst h = $env.CHANNEL_HANDLE ?? '';\nreturn [{ json: { handle: h, ok: /^@[A-Za-z0-9._-]{3,30}$/.test(h) } }];"
       },
-      "id": "0c555ab8-485d-c750-e1a4-10475e0a3abb",
+      "id": "87997060-c3ee-5579-e602-d21e9cc98934",
       "position": [
         260,
         0
@@ -69,7 +69,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "85b7dbe6-c4e2-aef0-a446-7d0ff3a8951d",
+      "id": "0d582e40-f795-c2dc-1b25-3bf3fac98b29",
       "position": [
         520,
         0
@@ -135,7 +135,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "99053b15-6c42-0155-db1b-3849ae46345e",
+      "id": "68d3086e-ce93-879a-3bb0-637d0b797a55",
       "position": [
         780,
         0
@@ -166,7 +166,7 @@
         },
         "options": {}
       },
-      "id": "89a434fc-0fd7-5a8a-20f5-2d4aa9fe15fb",
+      "id": "05f20922-19f0-2fca-4617-ece86216c3e3",
       "position": [
         1040,
         0
@@ -208,7 +208,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "c95b96f5-9a98-94e3-6aab-f259525cf80d",
+      "id": "0c555ab8-485d-c750-e1a4-10475e0a3abb",
       "position": [
         780,
         220
@@ -250,7 +250,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "8588af8f-8bbb-466a-21c2-2486bb98e373",
+      "id": "85b7dbe6-c4e2-aef0-a446-7d0ff3a8951d",
       "position": [
         1040,
         220
@@ -265,7 +265,7 @@
         "language": "javaScript",
         "jsCode": "// No node compares two API results and picks one of three outcomes.\nconst want = $('Handle channel').first().json.items?.[0]?.id ?? null;\nconst have = $('Credential channel').first().json.items?.[0]?.id ?? null;\nconst handle = $('Check handle').first().json.handle;\nif (!want) return [{ json: { ok: false, reason: 'handle_not_found', alert: { key: 'handle_not_found', subject: 'No channel has the handle ' + handle,\n  text: 'YouTube finds no channel for CHANNEL_HANDLE \"' + handle + '\" (exactly as written in .env). Fix the value in .env; nothing is uploaded until then.' } } }];\nif (want !== have) return [{ json: { ok: false, reason: 'channel_mismatch', alert: { key: 'channel_mismatch', subject: 'YouTube credential is for another channel',\n  text: 'The YouTube Channel credential is connected to channel ' + have + ', but ' + handle + ' is channel ' + want + '. Nothing was uploaded. Re-connect the credential to ' + handle + ' or fix CHANNEL_HANDLE.' } } }];\nreturn [{ json: { ok: true, channel_id: want } }];"
       },
-      "id": "8f6ca372-9d44-4cfd-1001-514926746ce1",
+      "id": "99053b15-6c42-0155-db1b-3849ae46345e",
       "position": [
         1300,
         0
@@ -300,7 +300,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "4d204f5a-1375-c223-e0bb-c16df1614280",
+      "id": "89a434fc-0fd7-5a8a-20f5-2d4aa9fe15fb",
       "position": [
         1560,
         0
@@ -366,7 +366,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "e593712c-f591-cce1-7547-df0aa56daffc",
+      "id": "c95b96f5-9a98-94e3-6aab-f259525cf80d",
       "position": [
         1820,
         0
@@ -397,7 +397,7 @@
         },
         "options": {}
       },
-      "id": "d7ddf060-c9c7-3e55-d47d-ee7010bcf204",
+      "id": "8588af8f-8bbb-466a-21c2-2486bb98e373",
       "position": [
         2080,
         0
@@ -428,7 +428,7 @@
         },
         "options": {}
       },
-      "id": "57221f37-5cea-da24-fae8-6f150c4ea833",
+      "id": "8f6ca372-9d44-4cfd-1001-514926746ce1",
       "position": [
         1820,
         220
@@ -459,7 +459,7 @@
         },
         "options": {}
       },
-      "id": "0ccd29b8-7ffe-fea4-4bdf-b240473d5166",
+      "id": "4d204f5a-1375-c223-e0bb-c16df1614280",
       "position": [
         1300,
         220

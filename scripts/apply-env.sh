@@ -19,7 +19,7 @@ WAIT_MIN=${APPLY_ENV_WAIT_MIN:-90}  # test hook
 REQUIRED="OWNER_EMAIL CHANNEL_HANDLE BOT_EMAIL TZ PUBLISH_TIME SCHEDULE_CANDIDATES
 PUBLISH_MODE BUFFER_TARGET REVIEW_HOURS WEBHOOK_URL GEMINI_MODEL GROQ_MODEL OLLAMA_MODEL
 LLM_CHAIN_SCOUT LLM_CHAIN_WRITER LLM_CHAIN_CHECKER LLM_CHAIN_EDITOR LLM_CHAIN_DIRECTOR
-LLM_CHAIN_CUTTER LLM_CHAIN_SCHEDULER MASTER_MODEL MASTER_EFFORT
+LLM_CHAIN_CUTTER LLM_CHAIN_SCHEDULER MASTER_MODEL
 N8N_ENCRYPTION_KEY POSTGRES_PASSWORD POSTGRES_APP_PASSWORD"
 REQUIRED=$(echo $REQUIRED)  # one line, single spaces
 # A reload cannot apply these: a new key makes every credential unreadable, and
@@ -66,7 +66,7 @@ check() {
       OWNER_EMAIL | BOT_EMAIL) [[ $val =~ $RE_EMAIL ]] || { echo "line $n: $key must be exactly one address"; return 1; } ;;
       CHANNEL_HANDLE) [[ $val =~ $RE_HANDLE ]] || { echo "line $n: CHANNEL_HANDLE must look like @handle (3-30 of A-Z a-z 0-9 . _ -)"; return 1; } ;;
       PUBLISH_MODE) [[ $val == manual || $val == auto ]] || { echo "line $n: PUBLISH_MODE must be manual or auto"; return 1; } ;;
-      MASTER_EFFORT) [[ $val == low || $val == medium || $val == high ]] || { echo "line $n: MASTER_EFFORT must be low, medium or high"; return 1; } ;;
+      MASTER_MODEL) [[ $val =~ ^gemini-[A-Za-z0-9._-]+$ ]] || { echo "line $n: MASTER_MODEL must be a Gemini model id (gemini-...)"; return 1; } ;;
       LLM_CHAIN_*)
         [[ $val =~ $RE_CHAIN ]] || { echo "line $n: $key must be a comma list of gemini, groq, ollama (each optionally :model)"; return 1; }
         if [[ $key == LLM_CHAIN_EDITOR || $key == LLM_CHAIN_CUTTER ]] && [[ ,$val =~ ,gemini(,|:|$) ]]; then

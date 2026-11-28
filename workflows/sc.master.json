@@ -18,7 +18,7 @@
           ]
         }
       },
-      "id": "5370d975-0214-9b30-186b-0b56e23d7641",
+      "id": "5f222105-6e9f-5aad-d118-91c8572562fa",
       "position": [
         0,
         0
@@ -39,7 +39,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "5a178955-7c96-8f2a-23b7-7591cda68ce4",
+      "id": "42b9683e-c4bd-0555-c243-1598e53560bb",
       "position": [
         260,
         0
@@ -54,7 +54,7 @@
         "fileSelector": "/prompts/master_triage.md",
         "options": {}
       },
-      "id": "dff46b58-bced-0a38-0ff7-95f13732d99d",
+      "id": "73c923e3-1a18-c55e-d957-7ccc8c74cb9d",
       "position": [
         780,
         0
@@ -69,7 +69,7 @@
         "destinationKey": "prompt",
         "options": {}
       },
-      "id": "aeda7e8a-5df7-940b-5765-c2aa960150c2",
+      "id": "6898901b-d358-f201-af51-8e2513940c0a",
       "position": [
         1040,
         0
@@ -90,35 +90,30 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "4fe15591-071a-0fc1-7ba1-d2e965366285",
+      "id": "5370d975-0214-9b30-186b-0b56e23d7641",
       "position": [
         1300,
         0
       ]
     },
     {
-      "name": "Claude",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.6,
+      "name": "Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
       "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $env.MASTER_MODEL }}"
-        },
+        "modelName": "={{ 'models/' + $env.MASTER_MODEL }}",
         "options": {
-          "maxTokensToSample": 16000,
-          "thinkingMode": "adaptive",
-          "effort": "high"
+          "temperature": 0.2,
+          "maxOutputTokens": 8192
         }
       },
       "credentials": {
-        "anthropicApi": {
-          "id": "scCredAnthropic1",
-          "name": "Anthropic"
+        "googlePalmApi": {
+          "id": "scCredGemini0001",
+          "name": "Gemini"
         }
       },
-      "id": "8a607ecc-b2f3-534f-f9c4-e67ca3fa8ae7",
+      "id": "5a178955-7c96-8f2a-23b7-7591cda68ce4",
       "position": [
         0,
         220
@@ -132,7 +127,7 @@
         "schemaType": "manual",
         "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"diagnosis\": {\n      \"type\": \"string\"\n    },\n    \"owner_note\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"diagnosis\",\n    \"owner_note\"\n  ]\n}"
       },
-      "id": "be127c5f-f423-2852-6a4b-60f51f4a9263",
+      "id": "dff46b58-bced-0a38-0ff7-95f13732d99d",
       "position": [
         0,
         440
@@ -172,7 +167,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "ae05018c-bfeb-24f3-cd0c-5fa2add61b53",
+      "id": "aeda7e8a-5df7-940b-5765-c2aa960150c2",
       "position": [
         0,
         660
@@ -212,7 +207,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "e50b3848-1c27-96e1-0869-f75ddd1e9956",
+      "id": "4fe15591-071a-0fc1-7ba1-d2e965366285",
       "position": [
         0,
         880
@@ -285,7 +280,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "92706de3-732d-615f-499f-9490b59ca11d",
+      "id": "8a607ecc-b2f3-534f-f9c4-e67ca3fa8ae7",
       "position": [
         0,
         1100
@@ -358,7 +353,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "c89e72d4-229b-1879-eb66-0d52fdd88200",
+      "id": "be127c5f-f423-2852-6a4b-60f51f4a9263",
       "position": [
         0,
         1320
@@ -431,7 +426,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "bfc74088-1383-a7cf-29ac-e562ed3d1ca4",
+      "id": "ae05018c-bfeb-24f3-cd0c-5fa2add61b53",
       "position": [
         0,
         1540
@@ -504,7 +499,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "99e2090e-44e4-9b7a-1f86-47b0a964e404",
+      "id": "e50b3848-1c27-96e1-0869-f75ddd1e9956",
       "position": [
         0,
         1760
@@ -544,8 +539,8 @@
           "name": "Gmail Bot"
         }
       },
-      "webhookId": "47b8dccc-d8d3-0f65-1a46-4ae6eba4a8a1",
-      "id": "b1b25bce-7e9b-53ab-1bce-35dd1b9a7dd2",
+      "webhookId": "6efe0ae3-59cb-7aea-a1dd-abcdceb24490",
+      "id": "92706de3-732d-615f-499f-9490b59ca11d",
       "position": [
         1240,
         180
@@ -558,9 +553,9 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// No node reads the agent's tool steps to see whether an action tool succeeded.\nconst r = $input.first().json;\n// the agent may put a sub-node error (Anthropic down, bad key) on its main output\nif (r.error || !r.output) return [{ json: { acted: false, output: { skipped: 'down', detail: String(r.error?.message ?? r.error ?? 'no answer').slice(0, 500) }, tools: [] } }];\nconst steps = r.intermediateSteps ?? [];\nconst acts = steps.filter((s) => ['retry_job', 'redo_job', 'fail_job', 'reject_job'].includes(s.action?.tool));\nconst done = acts.some((s) => /^\\s*(\\[\\s*\\{.*)?\"?done:/s.test(typeof s.observation === 'string' ? s.observation : JSON.stringify(s.observation)) || /done: SC-/.test(JSON.stringify(s.observation)));\nreturn [{ json: { acted: done, output: r.output ?? null, tools: steps.map((s) => ({ tool: s.action?.tool, input: s.action?.toolInput, result: String(typeof s.observation === 'string' ? s.observation : JSON.stringify(s.observation)).slice(0, 500) })) } }];"
+        "jsCode": "// No node reads the agent's tool steps to see whether an action tool succeeded.\nconst r = $input.first().json;\n// the agent may put a sub-node error (Gemini down, bad key) on its main output\nif (r.error || !r.output) return [{ json: { acted: false, output: { skipped: 'down', detail: String(r.error?.message ?? r.error ?? 'no answer').slice(0, 500) }, tools: [] } }];\nconst steps = r.intermediateSteps ?? [];\nconst acts = steps.filter((s) => ['retry_job', 'redo_job', 'fail_job', 'reject_job'].includes(s.action?.tool));\nconst done = acts.some((s) => /^\\s*(\\[\\s*\\{.*)?\"?done:/s.test(typeof s.observation === 'string' ? s.observation : JSON.stringify(s.observation)) || /done: SC-/.test(JSON.stringify(s.observation)));\nreturn [{ json: { acted: done, output: r.output ?? null, tools: steps.map((s) => ({ tool: s.action?.tool, input: s.action?.toolInput, result: String(typeof s.observation === 'string' ? s.observation : JSON.stringify(s.observation)).slice(0, 500) })) } }];"
       },
-      "id": "57ea308f-0a47-b214-07d5-13f9e1badff0",
+      "id": "c89e72d4-229b-1879-eb66-0d52fdd88200",
       "position": [
         1560,
         0
@@ -576,19 +571,19 @@
         "assignments": {
           "assignments": [
             {
-              "id": "de1fd43c-c411-4cc5-b246-313cee6ecd0f",
+              "id": "2966f0a8-8eeb-2559-1eaa-1af7d46bb0f9",
               "name": "acted",
               "value": "={{ false }}",
               "type": "boolean"
             },
             {
-              "id": "883babdb-cce1-ddcf-53bc-f1d9f98325bf",
+              "id": "8653e8a8-59a8-7632-642a-1102311db5ea",
               "name": "output",
               "value": "={{ { skipped: \"down\", detail: String($json.error?.message ?? $json.error ?? \"error\").slice(0, 500) } }}",
               "type": "object"
             },
             {
-              "id": "97540ab7-7f5e-adc5-5194-ec538f28fa8a",
+              "id": "6f354cb2-3460-ac3c-c2c1-ac2c2fc47c58",
               "name": "tools",
               "value": "={{ [] }}",
               "type": "array"
@@ -597,7 +592,7 @@
         },
         "options": {}
       },
-      "id": "510f9ae8-1166-84c6-d618-5f1c1c9a8771",
+      "id": "bfc74088-1383-a7cf-29ac-e562ed3d1ca4",
       "position": [
         1560,
         220
@@ -620,7 +615,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "de51c628-3c86-5f11-389f-dec74d8f9968",
+      "id": "99e2090e-44e4-9b7a-1f86-47b0a964e404",
       "position": [
         1820,
         0
@@ -643,7 +638,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "c1410090-bf80-b562-d357-4c5267141175",
+      "id": "b1b25bce-7e9b-53ab-1bce-35dd1b9a7dd2",
       "position": [
         2080,
         0
@@ -663,7 +658,7 @@
           },
           "conditions": [
             {
-              "id": "6f0b9397-0a61-dc4b-ea28-57be6056ca28",
+              "id": "47b8dccc-d8d3-0f65-1a46-4ae6eba4a8a1",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -678,7 +673,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "a31738f7-dafd-327b-6e6f-4d4006728392",
+      "id": "57ea308f-0a47-b214-07d5-13f9e1badff0",
       "position": [
         520,
         0
@@ -686,7 +681,7 @@
     }
   ],
   "connections": {
-    "Claude": {
+    "Model": {
       "ai_languageModel": [
         [
           {

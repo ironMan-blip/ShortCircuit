@@ -18,7 +18,7 @@
           ]
         }
       },
-      "id": "a139e41a-b753-6422-2172-83a08d186c4c",
+      "id": "510f9ae8-1166-84c6-d618-5f1c1c9a8771",
       "position": [
         0,
         0
@@ -41,7 +41,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "d5686fe3-cc01-4d66-2823-efede6b7f48a",
+      "id": "de51c628-3c86-5f11-389f-dec74d8f9968",
       "position": [
         260,
         0
@@ -64,7 +64,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "3b000263-cca6-32b0-fc17-241021be0d1a",
+      "id": "c1410090-bf80-b562-d357-4c5267141175",
       "position": [
         520,
         0
@@ -79,7 +79,7 @@
         "fileSelector": "/prompts/master_daily.md",
         "options": {}
       },
-      "id": "a02c6cda-0d73-26a1-306c-0580d9e87c86",
+      "id": "a31738f7-dafd-327b-6e6f-4d4006728392",
       "position": [
         780,
         0
@@ -94,7 +94,7 @@
         "destinationKey": "prompt",
         "options": {}
       },
-      "id": "50123f51-0b41-a50d-c8ae-1f8e9f07e6ca",
+      "id": "a139e41a-b753-6422-2172-83a08d186c4c",
       "position": [
         1040,
         0
@@ -115,35 +115,30 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "0b8ba7ff-6666-e14c-e985-7cb6e8cc606c",
+      "id": "d5686fe3-cc01-4d66-2823-efede6b7f48a",
       "position": [
         1300,
         0
       ]
     },
     {
-      "name": "Claude",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.6,
+      "name": "Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
       "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $env.MASTER_MODEL }}"
-        },
+        "modelName": "={{ 'models/' + $env.MASTER_MODEL }}",
         "options": {
-          "maxTokensToSample": 16000,
-          "thinkingMode": "adaptive",
-          "effort": "={{ $env.MASTER_EFFORT || \"medium\" }}"
+          "temperature": 0.2,
+          "maxOutputTokens": 8192
         }
       },
       "credentials": {
-        "anthropicApi": {
-          "id": "scCredAnthropic1",
-          "name": "Anthropic"
+        "googlePalmApi": {
+          "id": "scCredGemini0001",
+          "name": "Gemini"
         }
       },
-      "id": "9dfc1e29-e5f0-a0f9-4971-f334eadcbb76",
+      "id": "3b000263-cca6-32b0-fc17-241021be0d1a",
       "position": [
         0,
         220
@@ -157,7 +152,7 @@
         "schemaType": "manual",
         "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"healthy\": {\n      \"type\": \"boolean\"\n    },\n    \"findings\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"agent\": {\n            \"type\": \"string\"\n          },\n          \"text\": {\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"agent\",\n          \"text\"\n        ]\n      }\n    },\n    \"suggestions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"brief\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"healthy\",\n    \"findings\",\n    \"suggestions\",\n    \"brief\"\n  ]\n}"
       },
-      "id": "8cc05295-8b2d-47dd-60e6-234b72a46602",
+      "id": "a02c6cda-0d73-26a1-306c-0580d9e87c86",
       "position": [
         0,
         440
@@ -197,7 +192,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "dd5116c0-5819-b42b-76e8-d4c3a5016356",
+      "id": "50123f51-0b41-a50d-c8ae-1f8e9f07e6ca",
       "position": [
         0,
         660
@@ -237,7 +232,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "2831a817-6f93-fbcf-076d-eebbfb594c96",
+      "id": "0b8ba7ff-6666-e14c-e985-7cb6e8cc606c",
       "position": [
         0,
         880
@@ -277,7 +272,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "8fcaf5f4-db94-7212-e4f7-466ec26fb3ca",
+      "id": "9dfc1e29-e5f0-a0f9-4971-f334eadcbb76",
       "position": [
         0,
         1100
@@ -350,7 +345,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "f241e914-a8ec-da33-bb62-224ce163c8be",
+      "id": "8cc05295-8b2d-47dd-60e6-234b72a46602",
       "position": [
         0,
         1320
@@ -423,7 +418,7 @@
           "convertFieldsToString": false
         }
       },
-      "id": "fbe51985-7ce7-ea56-333f-a4f936e2c7d2",
+      "id": "dd5116c0-5819-b42b-76e8-d4c3a5016356",
       "position": [
         0,
         1540
@@ -463,8 +458,8 @@
           "name": "Gmail Bot"
         }
       },
-      "webhookId": "5a5d05e8-9986-6bc4-1850-c3e6b1d72264",
-      "id": "8d36dc85-95cb-333e-f1a7-1ef9143ed071",
+      "webhookId": "de1fd43c-c411-4cc5-b246-313cee6ecd0f",
+      "id": "2831a817-6f93-fbcf-076d-eebbfb594c96",
       "position": [
         1240,
         180
@@ -479,7 +474,7 @@
         "language": "javaScript",
         "jsCode": "// No node decides whether today needs a brief and HTML-escapes the Master's text.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst r = $input.first().json; const o = r.output ?? {}; const s = $('Snapshot').first().json.snapshot;\nconst steps = (r.intermediateSteps ?? []).map((x) => ({ tool: x.action?.tool, input: x.action?.toolInput, result: String(typeof x.observation === 'string' ? x.observation : JSON.stringify(x.observation)).slice(0, 300) }));\nconst acted = steps.some((x) => ['retry_job', 'reject_job'].includes(x.tool) && /done:/.test(x.result));\nconst actionsToday = (s.master_log_today ?? []).filter((m) => String(m.task).startsWith('tool:') || m.task === 'triage' || m.task === 'late_publish');\nconst send = acted || actionsToday.length > 0 || (o.suggestions ?? []).length > 0 || (o.findings ?? []).length > 0 || (s.empty_slot_days ?? []).length > 0 || s.schedule_changed_today || s.config_changed_today;\nconst li = (a) => a.length ? '<ul>' + a.map((x) => '<li>' + x + '</li>').join('') + '</ul>' : '<p>None.</p>';\nconst html = page('Master brief', '<p style=\"white-space:pre-wrap\">' + esc(o.brief) + '</p>'\n  + '<h3>Findings</h3>' + li((o.findings ?? []).map((f) => '<b>' + esc(f.agent) + '</b>: ' + esc(f.text)))\n  + '<h3>Suggestions (you decide)</h3>' + li((o.suggestions ?? []).map(esc))\n  + ((s.empty_slot_days ?? []).length ? '<h3>Days with no Short</h3>' + li(s.empty_slot_days.map(esc)) : '')\n  + '<h3>Master actions in the last 24 h</h3>' + li([...actionsToday.map((m) => esc((m.job ?? '') + ' ' + m.task + ': ' + JSON.stringify(m.result).slice(0, 300))), ...steps.filter((x) => !['get_job', 'crew_stats', 'list_stuck'].includes(x.tool)).map((x) => esc(x.tool + ' ' + JSON.stringify(x.input) + ' → ' + x.result))]));\nconst date = new Date().toLocaleDateString('en-CA', { timeZone: $env.TZ });\nreturn [{ json: { send, result: { ...o, tools: steps }, subject: 'ShortCircuit Master brief — ' + date, html } }];"
       },
-      "id": "14f90bf8-2735-8d81-4648-525d086469dc",
+      "id": "8fcaf5f4-db94-7212-e4f7-466ec26fb3ca",
       "position": [
         1820,
         0
@@ -502,7 +497,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "ae2bb551-27f6-5553-77c8-6c3a44d82655",
+      "id": "f241e914-a8ec-da33-bb62-224ce163c8be",
       "position": [
         2080,
         0
@@ -522,7 +517,7 @@
           },
           "conditions": [
             {
-              "id": "1297c825-0f08-ac08-d789-e169a08c3972",
+              "id": "883babdb-cce1-ddcf-53bc-f1d9f98325bf",
               "leftValue": "={{ $('Brief').first().json.send }}",
               "rightValue": "",
               "operator": {
@@ -537,7 +532,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "1ccb9c41-2754-19ec-ec78-18629852f1c0",
+      "id": "fbe51985-7ce7-ea56-333f-a4f936e2c7d2",
       "position": [
         2340,
         0
@@ -592,7 +587,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "5d84fa49-0a34-824f-ee1c-70071c9586e7",
+      "id": "8d36dc85-95cb-333e-f1a7-1ef9143ed071",
       "position": [
         2600,
         0
@@ -612,7 +607,7 @@
           },
           "conditions": [
             {
-              "id": "5a5ac884-9eb3-d188-4683-06b54e576813",
+              "id": "97540ab7-7f5e-adc5-5194-ec538f28fa8a",
               "leftValue": "={{ $json.output }}",
               "rightValue": "",
               "operator": {
@@ -627,7 +622,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "f4b455f9-8996-dc05-1ee8-5288d05a6a61",
+      "id": "14f90bf8-2735-8d81-4648-525d086469dc",
       "position": [
         1560,
         0
@@ -650,7 +645,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "278aa6ae-13b4-74ed-7d94-37b698740bb6",
+      "id": "ae2bb551-27f6-5553-77c8-6c3a44d82655",
       "position": [
         1820,
         220
@@ -671,7 +666,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "e7df3f3e-d794-3859-380f-38b008bee6e0",
+      "id": "1ccb9c41-2754-19ec-ec78-18629852f1c0",
       "position": [
         2080,
         220
@@ -691,7 +686,7 @@
           },
           "conditions": [
             {
-              "id": "ee158004-c92e-fbf0-408c-dcc724a24b3b",
+              "id": "6f0b9397-0a61-dc4b-ea28-57be6056ca28",
               "leftValue": "={{ $json.ok }}",
               "rightValue": "",
               "operator": {
@@ -706,7 +701,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "35458637-1b8b-fb8c-5714-e36faadbcce3",
+      "id": "5d84fa49-0a34-824f-ee1c-70071c9586e7",
       "position": [
         2340,
         220
@@ -728,7 +723,7 @@
           "value": {
             "key": "={{ 'master_down' }}",
             "subject": "={{ 'The Master has not worked for 24 h' }}",
-            "text": "={{ 'No Master call succeeded in the last 24 hours (API outage, spend limit or a revoked key). Reviews are skipped and triage jobs end as failed after 6 h until it is back. Check the Anthropic credential and the Console usage page.' }}"
+            "text": "={{ 'No Master call succeeded in the last 24 hours (API outage, free-tier limit or a revoked key). Reviews are skipped and triage jobs end as failed after 6 h until it is back. Check the Gemini credential and the AI Studio usage page.' }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -772,7 +767,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "325eccea-6f96-134f-ac6a-34f819e6e1ce",
+      "id": "f4b455f9-8996-dc05-1ee8-5288d05a6a61",
       "position": [
         2600,
         220
@@ -780,7 +775,7 @@
     }
   ],
   "connections": {
-    "Claude": {
+    "Model": {
       "ai_languageModel": [
         [
           {

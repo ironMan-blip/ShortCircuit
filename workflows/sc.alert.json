@@ -27,7 +27,7 @@
           ]
         }
       },
-      "id": "8a0c0434-d15a-a1b5-0f51-07b9df53f2b7",
+      "id": "3d4e48fc-dd15-add2-600a-a2ae79d4c96c",
       "position": [
         0,
         0
@@ -50,7 +50,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "580a45e0-61dd-4aa0-18c7-e19ae8e8b9dd",
+      "id": "5ca2e29c-f6df-c2af-9086-40c5a4227934",
       "position": [
         260,
         0
@@ -85,7 +85,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "26d0425f-88c2-dd63-1eb5-8dd2cd44fe43",
+      "id": "13d331d5-6824-49c2-7a76-834330b56f86",
       "position": [
         520,
         0
@@ -100,7 +100,7 @@
         "language": "javaScript",
         "jsCode": "// No node HTML-escapes text.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst i = $('Input').first().json;\nreturn [{ json: { subject: 'ShortCircuit ALERT: ' + i.subject,\n  html: page('ALERT: ' + i.subject, '<pre style=\"white-space:pre-wrap;font-family:inherit\">' + esc(i.text) + '</pre><p style=\"color:#666\">key: ' + esc(i.key) + '</p>') } }];"
       },
-      "id": "98ada5b0-ad2c-bbad-eba7-20a82afffb4b",
+      "id": "4da04ac9-ca27-f456-36a2-9eb8c783a039",
       "position": [
         780,
         0
@@ -155,7 +155,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "87997060-c3ee-5579-e602-d21e9cc98934",
+      "id": "8a0c0434-d15a-a1b5-0f51-07b9df53f2b7",
       "position": [
         1040,
         0
@@ -178,7 +178,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "0d582e40-f795-c2dc-1b25-3bf3fac98b29",
+      "id": "580a45e0-61dd-4aa0-18c7-e19ae8e8b9dd",
       "position": [
         1300,
         0
@@ -191,7 +191,7 @@
       "parameters": {
         "errorMessage": "={{ 'sc.alert could not mail ' + $('Input').first().json.key }}"
       },
-      "id": "68d3086e-ce93-879a-3bb0-637d0b797a55",
+      "id": "26d0425f-88c2-dd63-1eb5-8dd2cd44fe43",
       "position": [
         1560,
         0

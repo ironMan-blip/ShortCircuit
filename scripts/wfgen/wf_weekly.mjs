@@ -115,10 +115,6 @@ return items.length ? items : [{ json: { agent: 'none', name: 'no fixtures', pro
   w.c(L1, 'Results', 0);
   w.add(n.pg('Week stats', `SELECT (SELECT result FROM (${STATS_INLINE}) s) AS stats,
   (SELECT coalesce(jsonb_object_agg(task, result), '{}') FROM (SELECT DISTINCT ON (task) task, result FROM master_log WHERE task LIKE 'diagnose_%' AND created_at < now() - interval '1 day' ORDER BY task, id DESC) l) AS last_week,
-  (SELECT coalesce(sum((usage->>'input_tokens')::numeric), 0) FROM master_log WHERE created_at > now() - interval '7 days') AS in_tokens,
-  (SELECT coalesce(sum((usage->>'output_tokens')::numeric), 0) FROM master_log WHERE created_at > now() - interval '7 days') AS out_tokens,
-  (SELECT coalesce(sum((usage->>'web_search_requests')::numeric), 0) FROM master_log WHERE created_at > now() - interval '7 days') AS searches,
-  (SELECT count(*) FROM master_log WHERE created_at > now() - interval '7 days' AND usage IS NOT NULL) AS usage_rows,
   (SELECT count(*) FROM master_log WHERE created_at > now() - interval '7 days' AND task IN ('review_script', 'review_video', 'triage', 'daily')) AS master_calls;`));
   w.c('Results', 'Week stats');
   w.add(n.askMaster('Research', 'diagnose_research', null, `JSON.stringify({
@@ -166,7 +162,7 @@ return items.length ? items : [{ json: { none: true } }];`));
     candidate_tests: $('Candidate results').isExecuted ? $('Candidate results').first().json.results : [],
     week_stats: $('Week stats').first().json.stats, last_week: $('Week stats').first().json.last_week.diagnose_grade ?? null })`));
   w.c('Tests done', 'Grade');
-  w.add(n.code('Report', `// No node runs the local-or-free check, prices the Master or builds the HTML report (PLAN §4.9 steps 6-7).
+  w.add(n.code('Report', `// No node runs the local-or-free check or builds the HTML report (PLAN §4.9 steps 6-7).
 ${ESC}
 const DIAG = ${JSON.stringify(DIAG_WEB_DOMAINS)};
 const AGENTS = ${JSON.stringify(AGENTS)};
@@ -181,10 +177,8 @@ const env = (a) => String($env['LLM_CHAIN_' + a.toUpperCase()] ?? '');
 const freeOf = (m) => (info?.in_use ?? []).find((x) => x.model === m);
 const used = [...new Set(AGENTS.flatMap((a) => env(a).split(',').map((e) => e.trim()).filter(Boolean).map((e) => e.includes(':') ? e : e + ':' + ($env[e.toUpperCase() + '_MODEL'] ?? ''))))];
 const notFree = used.filter((m) => !m.startsWith('ollama:') && freeOf(m)?.free !== 'yes');
-// Master cost (Opus 5.5 list prices: $4 / $20 per million tokens, $10 per 1 000 searches; update if MASTER_MODEL changes)
-const ws = $('Week stats').first().json;
-const cost = (Number(ws.in_tokens) * 4 + Number(ws.out_tokens) * 20) / 1e6 + Number(ws.searches) * 0.01;
-const costLine = Number(ws.usage_rows) ? '$' + cost.toFixed(2) + ' (' + ws.usage_rows + ' metered calls; chain reviews and agent runs: see the Console usage page)' : 'see the Console usage page (this n8n version returns no token counts)';
+// The Master runs on the Gemini free tier: a project with no billing account cannot be charged.
+const costLine = '$0 (Gemini free tier; tokens and searches are in master_log.usage)';
 const per = AGENTS.map((a) => { const r = results.filter((x) => x.agent === a); const byP = {};
   for (const x of r) { byP[x.provider] ??= [0, 0]; byP[x.provider][1]++; if (x.pass) byP[x.provider][0]++; }
   const ga = g?.agents?.find((x) => x.agent === a);
@@ -215,7 +209,7 @@ else {
   if (pend.length) body += '<h3>Not pulled (tested next week once pulled)</h3><ul>' + pend.map((x) => '<li>run <code>ollama pull ' + esc(x.model.slice(7)) + '</code> (' + esc(x.size_gb ?? '?') + ' GB): ' + esc(x.why) + ' ' + link(x.source_url, 'source') + '</li>').join('') + '</ul>';
   body += '<h3>Other options (untested)</h3><ul>' + (info.other_options ?? []).map((o) => '<li>' + esc(o.text) + ' ' + link(o.source_url, 'source') + '</li>').join('') + '</ul>';
 }
-body += '<p><b>Master cost, last 7 days:</b> ' + esc(costLine) + ' — the one paid part, by design.</p>';
+body += '<p><b>Master cost, last 7 days:</b> ' + esc(costLine) + '</p>';
 const date = new Date().toLocaleDateString('en-CA', { timeZone: $env.TZ });
 return [{ json: { subject: 'ShortCircuit weekly diagnosis — ' + date, html: page('Weekly diagnosis — ' + date, body),
   tests: { results: results.map(({ output, ...r }) => r), candidates: candResults.map(({ output, ...r }) => r), first_line: first, env_lines: lines } } }];`));
@@ -262,7 +256,7 @@ const fails = r.ok ? runChecks(r.json, JSON.parse(row.expect || '{}')) : ['call 
 return { json: { pass: fails.length ? 0 : 1, fails: fails.join('; '), output: r.ok ? JSON.stringify(r.json) : '', expect: row.expect } };`, { each: true }));
     w.add(n.evalMetrics('Pass metric', [['pass', '={{ $json.pass }}']]));
     w.add(n.evalCorrectness('Correctness', "={{ 'The output must satisfy these checks: ' + $('Checks').item.json.expect }}", "={{ $('Checks').item.json.output || ('FAILED: ' + $('Checks').item.json.fails) }}"));
-    w.add(n.anthropic('Judge model', 'low', 4000));
+    w.add(n.master('Judge model'));
     w.sub('Judge model', 'Correctness', 'ai_languageModel');
     w.chain('Fixtures', 'Run', 'Checks', 'Pass metric', 'Correctness');
     w.c('Run', 'Checks', 1);

@@ -17,7 +17,7 @@
           "cachedResultName": "eval_writer"
         }
       },
-      "id": "d1dc3fbd-7655-3557-da45-70c0c54d9499",
+      "id": "608a283e-9f84-c3ff-40b7-a9acc3ab7814",
       "position": [
         0,
         0
@@ -116,7 +116,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "5bdf044e-0689-b21f-4c97-d32942f95427",
+      "id": "c8b6e6eb-0e2c-c376-c36f-b7694efa32d1",
       "position": [
         260,
         0
@@ -131,7 +131,7 @@
         "language": "javaScript",
         "jsCode": "// No node runs the fixture's code checks.\nconst runChecks = (o, e) => {\n  const f = []; o = o ?? {};\n  const text = (x) => JSON.stringify(x ?? '').toLowerCase();\n  const words = (o.scenes ?? []).map((s) => s.narration ?? '').join(' ').split(/\\s+/).filter(Boolean).length;\n  if (e.words && (words < e.words[0] || words > e.words[1])) f.push('narration is ' + words + ' words, want ' + e.words.join('-'));\n  if (e.title_max && String(o.title ?? '').length > e.title_max) f.push('title longer than ' + e.title_max);\n  if (e.fact_count !== undefined) for (const s of o.scenes ?? []) for (const id of s.fact_ids ?? []) if (!(id >= 0 && id < e.fact_count)) f.push('scene ' + s.id + ' cites missing fact ' + id);\n  for (const a of e.absent ?? []) if (text({ t: o.title, h: o.hook, s: (o.scenes ?? []).map((s) => s.narration) }).includes(String(a).toLowerCase())) f.push('still says \"' + a + '\"');\n  for (const re of e.notes_mention ?? []) if (!new RegExp(re, 'i').test(String(o.editor_notes ?? ''))) f.push('editor_notes do not say it was refused');\n  if (e.pass !== undefined && o.pass !== e.pass) f.push('pass is ' + o.pass + ', want ' + e.pass);\n  for (const re of e.flags_mention ?? []) if (!new RegExp(re, 'i').test(JSON.stringify([o.unsupported_claims, o.policy_issues]))) f.push('the planted error is not flagged');\n  if (e.urls_from) { const u = o.source_urls ?? []; if (u.some((x) => !e.urls_from.includes(x))) f.push('a source url is not from the candidates'); if (u.length < (e.min_urls ?? 2)) f.push('fewer than ' + (e.min_urls ?? 2) + ' source urls'); }\n  for (const bad of e.not_urls ?? []) if ((o.source_urls ?? []).includes(bad) || o.primary_url === bad) f.push('picked ' + bad);\n  if ('screenshot_only' in e) for (const s of o.scenes ?? []) if (s.visual?.type === 'screenshot' && s.visual.url !== e.screenshot_only) f.push('scene ' + s.id + ' screenshots ' + s.visual.url);\n  if (e.no_repeat_stock) (o.scenes ?? []).forEach((s, i, a) => { if (i && s.visual?.type === 'stock' && a[i - 1].visual?.type === 'stock' && s.visual.query === a[i - 1].visual.query) f.push('two stock scenes in a row with the same query'); });\n  if (e.narration_from) (o.scenes ?? []).forEach((s) => { if (!e.narration_from.includes(s.narration)) f.push('scene ' + s.id + ' narration changed'); });\n  if (e.mood_in && !e.mood_in.includes(o.music_mood)) f.push('music_mood ' + o.music_mood + ' not allowed');\n  if (e.narration_change_empty === true && o.narration_change) f.push('narration_change should be empty');\n  if (e.narration_change_empty === false && !o.narration_change) f.push('the narration note was not passed on');\n  if (e.candidates) {\n    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];\n    if (!days.every((d) => e.candidates.includes(o.week?.[d]))) f.push('a time is not a candidate');\n    if (days.filter((d) => o.week?.[d] !== e.current[d]).length > (e.max_changes ?? 2) + (o.explore_day ? 1 : 0)) f.push('more than ' + e.max_changes + ' days changed');\n  }\n  return f;\n};\n\nconst row = $('Fixtures').item.json; const r = $input.item.json;\nconst fails = r.ok ? runChecks(r.json, JSON.parse(row.expect || '{}')) : ['call failed: ' + String(r.error?.message ?? r.error ?? 'error').slice(0, 200)];\nreturn { json: { pass: fails.length ? 0 : 1, fails: fails.join('; '), output: r.ok ? JSON.stringify(r.json) : '', expect: row.expect } };"
       },
-      "id": "f76ee37f-e375-907d-982f-e2a1f975fbad",
+      "id": "3aee5244-3ff5-9b20-f844-042b2939fd5f",
       "position": [
         520,
         0
@@ -147,7 +147,7 @@
         "metrics": {
           "assignments": [
             {
-              "id": "505f0cfa-1ecf-adb5-39b2-e694c102e2b1",
+              "id": "78454101-5392-1695-a324-05193364572c",
               "name": "pass",
               "value": "={{ $json.pass }}",
               "type": "number"
@@ -155,7 +155,7 @@
           ]
         }
       },
-      "id": "3dafa42e-df51-c159-8f4e-64a10092f8f4",
+      "id": "46e1e295-9903-3544-32b4-92fa880e742e",
       "position": [
         780,
         0
@@ -172,7 +172,7 @@
         "actualAnswer": "={{ $('Checks').item.json.output || ('FAILED: ' + $('Checks').item.json.fails) }}",
         "options": {}
       },
-      "id": "4ae78822-393f-a021-983a-6a91107bed59",
+      "id": "d1dc3fbd-7655-3557-da45-70c0c54d9499",
       "position": [
         1040,
         0
@@ -180,27 +180,22 @@
     },
     {
       "name": "Judge model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.6,
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
       "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $env.MASTER_MODEL }}"
-        },
+        "modelName": "={{ 'models/' + $env.MASTER_MODEL }}",
         "options": {
-          "maxTokensToSample": 4000,
-          "thinkingMode": "adaptive",
-          "effort": "low"
+          "temperature": 0.2,
+          "maxOutputTokens": 8192
         }
       },
       "credentials": {
-        "anthropicApi": {
-          "id": "scCredAnthropic1",
-          "name": "Anthropic"
+        "googlePalmApi": {
+          "id": "scCredGemini0001",
+          "name": "Gemini"
         }
       },
-      "id": "853da487-f0d4-9d72-d850-9b01e916b1ed",
+      "id": "5bdf044e-0689-b21f-4c97-d32942f95427",
       "position": [
         0,
         220

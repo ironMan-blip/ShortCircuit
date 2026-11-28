@@ -336,7 +336,7 @@ step "Create. Keep the client id and secret open: stage 13 pastes them into n8n 
 pause
 
 # ── 9 ─────────────────────────────────────────────────────────────────────
-stage "Model keys: Gemini, Groq, Anthropic (they go into n8n credentials, stage 13)"
+stage "Model keys: Gemini, Groq (they go into n8n credentials, stage 13)"
 open_url "https://aistudio.google.com/apikey"
 step "As the bot: Create API key. Keep it for stage 13."
 open_url "https://console.groq.com/keys"
@@ -344,10 +344,7 @@ step "Create API key. Keep it for stage 13."
 open_url "https://console.groq.com/docs/your-data"
 step "Read whether Groq trains on API data; note the answer in docs/notes/m0.md (PLAN §4)."
 step "Check each worker model's daily free limit is >= 60 a day; note it in docs/notes/m0.md."
-open_url "https://console.anthropic.com/settings/keys"
-step "Claude Console: create an API key (stage 13)."
-open_url "https://console.anthropic.com/settings/limits"
-step "Set a monthly spend limit (default plan: \$40)."
+note "The Master uses the same Gemini key (MASTER_MODEL). Never add billing to this Google project: then nothing can be charged."
 pause
 
 # ── 10 ────────────────────────────────────────────────────────────────────
@@ -398,7 +395,6 @@ say "Fill in each credential (PLAN §10.2):"
 step "Gmail Bot, Drive Bot: the OAuth client id/secret (stage 8); Connect, signed in as the bot."
 step "YouTube Channel: same client; Connect as the account that owns the TEST channel."
 step "Gemini, Groq: the keys from stage 9. Ollama: base URL http://host.docker.internal:11434."
-step "Anthropic: the Console key. Anthropic Header: name x-api-key, value the same key."
 copy_value POSTGRES_APP_PASSWORD && step "SC Postgres: host postgres, db shortcircuit, user sc_app, password = clipboard (copied)."
 pause "Press Enter for the cancel-form password"
 openssl rand -hex 16 | tr -d '\n' | pbcopy

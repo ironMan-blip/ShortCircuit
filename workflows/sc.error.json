@@ -9,7 +9,7 @@
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
       "parameters": {},
-      "id": "7d7b8f71-2e4e-79c0-e598-9e4d45dda49d",
+      "id": "e593712c-f591-cce1-7547-df0aa56daffc",
       "position": [
         0,
         0
@@ -24,7 +24,7 @@
         "language": "javaScript",
         "jsCode": "// No node keeps a rolling count across executions: workflow static data does.\nconst e = $input.first().json;\nconst wf = e.workflow?.name ?? 'unknown';\n// sc.llm throws on purpose when a whole chain fails; its caller's fail branch handles that (attempts → triage).\nif (wf === 'sc.llm') return [];\nconst s = $getWorkflowStaticData('global');\nconst now = Date.now();\ns.fails = (s.fails ?? {});\ns.fails[wf] = (s.fails[wf] ?? []).filter((t) => now - t < 3600e3).concat(now);\nconst msg = String(e.execution?.error?.message ?? e.trigger?.error?.message ?? 'unknown error').slice(0, 500);\nconst node = e.execution?.lastNodeExecuted ?? '';\nif (s.fails[wf].length < 3) return [];\ns.fails[wf] = [];\nreturn [{ json: { key: 'workflow_failing:' + wf, subject: wf + ' failed 3 times in an hour',\n  text: 'Workflow ' + wf + ' failed 3 times in the last hour. Last failure at node \"' + node + '\": ' + msg + (e.execution?.url ? '\\nExecution: ' + e.execution.url : '') } }];"
       },
-      "id": "176568a9-ba3a-fc8a-5106-759fdd80347a",
+      "id": "d7ddf060-c9c7-3e55-d47d-ee7010bcf204",
       "position": [
         260,
         0
@@ -89,7 +89,7 @@
           "waitForSubWorkflow": true
         }
       },
-      "id": "5c5a84a3-b27a-7c9a-c12e-6d453b4779c2",
+      "id": "57221f37-5cea-da24-fae8-6f150c4ea833",
       "position": [
         520,
         0

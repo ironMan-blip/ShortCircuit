@@ -39,7 +39,7 @@
           ]
         }
       },
-      "id": "07faca1b-1647-77f0-5bff-c7e8e98c602b",
+      "id": "0ccd29b8-7ffe-fea4-4bdf-b240473d5166",
       "position": [
         0,
         0
@@ -60,7 +60,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "9c48aa8e-07aa-31fc-7351-853e6115ab50",
+      "id": "7d7b8f71-2e4e-79c0-e598-9e4d45dda49d",
       "position": [
         260,
         0
@@ -75,7 +75,7 @@
         "fileSelector": "={{ '/prompts/' + $('Input').first().json.prompt + '.md' }}",
         "options": {}
       },
-      "id": "b68282d4-fbfe-69df-e300-c73f84aafa67",
+      "id": "176568a9-ba3a-fc8a-5106-759fdd80347a",
       "position": [
         520,
         0
@@ -90,7 +90,7 @@
         "destinationKey": "text",
         "options": {}
       },
-      "id": "1c551040-f419-7d15-2efd-002ff769cd61",
+      "id": "5c5a84a3-b27a-7c9a-c12e-6d453b4779c2",
       "position": [
         780,
         0
@@ -105,7 +105,7 @@
         "fileSelector": "={{ '/prompts/' + $('Input').first().json.prompt + '.schema.json' }}",
         "options": {}
       },
-      "id": "a3a23d5d-1079-e353-57e9-8e2111866b35",
+      "id": "07faca1b-1647-77f0-5bff-c7e8e98c602b",
       "position": [
         1040,
         0
@@ -120,7 +120,7 @@
         "destinationKey": "text",
         "options": {}
       },
-      "id": "ac61cd93-ee2b-03d2-fb42-283e9273e1f4",
+      "id": "9c48aa8e-07aa-31fc-7351-853e6115ab50",
       "position": [
         1300,
         0
@@ -135,7 +135,7 @@
         "fileSelector": "/prompts/style.md",
         "options": {}
       },
-      "id": "cad4a6a7-b0f1-5ff1-b138-2b0c6dba7d27",
+      "id": "b68282d4-fbfe-69df-e300-c73f84aafa67",
       "position": [
         1560,
         0
@@ -150,7 +150,7 @@
         "destinationKey": "text",
         "options": {}
       },
-      "id": "21d8bcf2-6e85-d99c-d9d7-112c3fe5ef7b",
+      "id": "1c551040-f419-7d15-2efd-002ff769cd61",
       "position": [
         1820,
         0
@@ -211,7 +211,7 @@
         },
         "options": {}
       },
-      "id": "7cbdc0cf-de82-27ca-a14f-b084d587b7e2",
+      "id": "a3a23d5d-1079-e353-57e9-8e2111866b35",
       "position": [
         2080,
         0
@@ -228,7 +228,7 @@
         },
         "include": "allOtherFields"
       },
-      "id": "b21a2b24-03f7-05b6-db28-f8310faf927e",
+      "id": "ac61cd93-ee2b-03d2-fb42-283e9273e1f4",
       "position": [
         2340,
         0
@@ -260,7 +260,7 @@
         },
         "options": {}
       },
-      "id": "2f93e12c-3201-a0fa-d84a-eb9b3276a7cd",
+      "id": "cad4a6a7-b0f1-5ff1-b138-2b0c6dba7d27",
       "position": [
         2600,
         0
@@ -315,7 +315,7 @@
         "options": {}
       },
       "alwaysOutputData": true,
-      "id": "4e78f436-3d43-3da3-3e90-ede8e31d00ca",
+      "id": "21d8bcf2-6e85-d99c-d9d7-112c3fe5ef7b",
       "position": [
         2860,
         0
@@ -328,7 +328,7 @@
       "parameters": {
         "options": {}
       },
-      "id": "3f399236-ab5b-921b-f8a0-0ad9a90f1787",
+      "id": "7cbdc0cf-de82-27ca-a14f-b084d587b7e2",
       "position": [
         14820,
         0
@@ -421,7 +421,7 @@
           "renameFallbackOutput": "none"
         }
       },
-      "id": "67c58299-881c-f6d8-5e40-a956bf188950",
+      "id": "b21a2b24-03f7-05b6-db28-f8310faf927e",
       "position": [
         15080,
         0
@@ -434,7 +434,7 @@
       "parameters": {
         "errorMessage": "={{ 'sc.llm: no provider left in chain \"' + $('Input').first().json.chain + '\" for ' + $('Input').first().json.agent + ' (excluded: ' + ($('Input').first().json.exclude_provider || 'none') + ', ollama skipped while rendering: ' + $('Render running?').first().json.rendering + ')' }}"
       },
-      "id": "90b98bb5-584a-22fa-87d8-fad3a8072266",
+      "id": "2f93e12c-3201-a0fa-d84a-eb9b3276a7cd",
       "position": [
         15340,
         0
@@ -447,7 +447,7 @@
       "parameters": {
         "errorMessage": "={{ 'sc.llm: every provider failed for ' + $('Input').first().json.agent + ': ' + $input.all().map(i => (i.json.provider ?? '?') + ' → ' + String(i.json.error?.message ?? i.json.error ?? 'error').slice(0, 300)).join(' | ') }}"
       },
-      "id": "03d3df55-0aaa-17c6-fd91-91169365ca00",
+      "id": "4e78f436-3d43-3da3-3e90-ede8e31d00ca",
       "position": [
         15080,
         220
@@ -490,7 +490,7 @@
         },
         "options": {}
       },
-      "id": "8b1fae52-b3cf-0226-4102-de38b8e12c4c",
+      "id": "3f399236-ab5b-921b-f8a0-0ad9a90f1787",
       "position": [
         14560,
         0
@@ -521,7 +521,7 @@
         },
         "options": {}
       },
-      "id": "70f931d8-6401-4573-cb4f-629835476baa",
+      "id": "67c58299-881c-f6d8-5e40-a956bf188950",
       "position": [
         14560,
         220
@@ -549,7 +549,7 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 10000,
-      "id": "ea387e09-caf3-c1fa-3e69-0bd8c91a0d70",
+      "id": "90b98bb5-584a-22fa-87d8-fad3a8072266",
       "position": [
         15340,
         220
@@ -572,7 +572,7 @@
           "name": "Gemini"
         }
       },
-      "id": "19d50ed2-c193-3227-a6f7-b537e4a3b118",
+      "id": "03d3df55-0aaa-17c6-fd91-91169365ca00",
       "position": [
         0,
         220
@@ -587,7 +587,7 @@
         "inputSchema": "={{ $json.schema }}",
         "autoFix": true
       },
-      "id": "7accdc5b-4d0b-676f-83ba-0a51fdd12e70",
+      "id": "8b1fae52-b3cf-0226-4102-de38b8e12c4c",
       "position": [
         15280,
         400
@@ -622,7 +622,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "54c5fc66-8ad8-e2f5-682d-c454cccae222",
+      "id": "70f931d8-6401-4573-cb4f-629835476baa",
       "position": [
         14300,
         0
@@ -650,7 +650,7 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 10000,
-      "id": "326bf765-e23e-8433-f3a8-9995cfd1346d",
+      "id": "ea387e09-caf3-c1fa-3e69-0bd8c91a0d70",
       "position": [
         15340,
         440
@@ -673,7 +673,7 @@
           "name": "Groq"
         }
       },
-      "id": "3e31ff6c-6b33-ffef-461e-58da545b7f5c",
+      "id": "19d50ed2-c193-3227-a6f7-b537e4a3b118",
       "position": [
         0,
         440
@@ -688,7 +688,7 @@
         "inputSchema": "={{ $json.schema }}",
         "autoFix": true
       },
-      "id": "fd417adf-2dc5-57c4-eb5c-d3dcdaae7bde",
+      "id": "7accdc5b-4d0b-676f-83ba-0a51fdd12e70",
       "position": [
         15280,
         620
@@ -723,7 +723,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "99ca6c55-7c93-80fb-e20d-0420b5715390",
+      "id": "54c5fc66-8ad8-e2f5-682d-c454cccae222",
       "position": [
         14300,
         220
@@ -751,7 +751,7 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 10000,
-      "id": "29b7d894-c92b-81e5-70c0-8984bc65708a",
+      "id": "326bf765-e23e-8433-f3a8-9995cfd1346d",
       "position": [
         15340,
         660
@@ -777,7 +777,7 @@
           "name": "Ollama"
         }
       },
-      "id": "493bffef-9959-0991-1712-15379388c84f",
+      "id": "3e31ff6c-6b33-ffef-461e-58da545b7f5c",
       "position": [
         0,
         660
@@ -792,7 +792,7 @@
         "inputSchema": "={{ $json.schema }}",
         "autoFix": true
       },
-      "id": "fcc612f4-a012-4012-226c-edeb8f120936",
+      "id": "fd417adf-2dc5-57c4-eb5c-d3dcdaae7bde",
       "position": [
         15280,
         840
@@ -827,7 +827,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "98ad53f0-f291-0508-ffed-a57499b2d0d6",
+      "id": "99ca6c55-7c93-80fb-e20d-0420b5715390",
       "position": [
         14300,
         440

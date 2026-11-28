@@ -5,7 +5,6 @@ const { WF } = n;
 const B = 'n8n-nodes-base.';
 
 export const DIAG_WEB_DOMAINS = ['ai.google.dev', 'groq.com', 'console.groq.com', 'ollama.com', 'huggingface.co', 'github.com', 'lmarena.ai', 'artificialanalysis.ai'];
-const ANTHROPIC_VERSION = '2026-10-21';
 const AGENTS = ['scout', 'writer', 'checker', 'editor', 'director', 'cutter', 'scheduler'];
 
 const REVIEW_SCHEMA = { type: 'object', properties: {
@@ -34,7 +33,7 @@ const schemas = { review_script: ${JSON.stringify(JSON.stringify(REVIEW_SCHEMA))
 const ok = ['review_script', 'review_video', 'diagnose_grade', 'diagnose_research'].includes(i.task);
 const job_id = Number.isInteger(Number(i.job_id)) && Number(i.job_id) > 0 ? Number(i.job_id) : null;
 return [{ json: { ok, task: i.task, job_id, context: typeof i.context === 'string' ? i.context : JSON.stringify(i.context ?? {}), image_path: i.image_path || '',
-  schema: schemas[i.task] ?? '', effort: i.task === 'diagnose_grade' ? 'high' : ($env.MASTER_EFFORT || 'medium') } }];`));
+  schema: schemas[i.task] ?? '' } }];`));
   w.add(n.readFile('Read prompt', "={{ '/prompts/master_' + $json.task + '.md' }}", { err: true }));
   w.add(n.extractText('Prompt text', 'prompt'));
   w.add(n.sw('Path', [
@@ -47,22 +46,22 @@ return [{ json: { ok, task: i.task, job_id, context: typeof i.context === 'strin
   w.chain('Input', 'Task', 'Known task?', 'Read prompt', 'Prompt text', 'Path');
   w.c('Known task?', 'Bad task', 1);
 
-  // Path A: Basic LLM Chain + Anthropic Chat Model + Structured Output Parser
+  // Path A: Basic LLM Chain + Gemini Chat Model + Structured Output Parser
   const T = "$('Task').first().json";
   w.add(n.readFile('Read image', `={{ ${T}.image_path }}`, { err: true }));
   w.c('Path', 'Read image', 0);
   const judge = (name, image) => {
     w.add(n.chain(name, `={{ ${ctxWrap(`${T}.context`)} }}`, "={{ $('Prompt text').first().json.prompt }}", { image: image ? 'data' : undefined, retry: { tries: 2, wait: 30000 } }));
-    w.add(n.anthropic(`Claude ${name}`, `={{ ${T}.effort }}`, 16000));
+    w.add(n.master(`Model ${name}`));
     w.add(n.parser(`Parser ${name}`, `={{ ${T}.schema }}`));
-    w.sub(`Claude ${name}`, name, 'ai_languageModel').sub(`Parser ${name}`, name, 'ai_outputParser');
+    w.sub(`Model ${name}`, name, 'ai_languageModel').sub(`Parser ${name}`, name, 'ai_outputParser');
   };
   judge('Judge', false); judge('Judge image', true);
   w.c('Path', 'Judge', 1).c('Read image', 'Judge image').c('Read image', 'Judge', 1);
   w.add(n.code('Map error', `// No node maps an API or parser error to one reason code.
 const e = $input.first().json; const m = String(e.error?.message ?? e.error ?? e.message ?? 'error') + ' ' + String(e.error?.description ?? '');
-const reason = /401|403|invalid x-api-key|api key|authentication|permission/i.test(m) ? 'auth'
-  : /429|rate.?limit|spend|credit balance|usage limit|quota/i.test(m) ? 'limit'
+const reason = /401|403|api.?key|authentication|permission/i.test(m) ? 'auth'
+  : /429|rate.?limit|resource.?exhausted|usage limit|quota/i.test(m) ? 'limit'
   : /timeout|timed out|ETIMEDOUT|ECONNABORTED/i.test(m) ? 'timeout'
   : /parse|schema|output parser|JSON|format/i.test(m) ? 'invalid' : 'down';
 return [{ json: { ok: false, reason, detail: m.slice(0, 500) } }];`));
@@ -80,63 +79,54 @@ return [{ json: { ok: true, json: { verdict: o.verdict, score, issues: (o.issues
   for (const j of ['Judge', 'Judge image']) w.c(j, 'Check verdict', 0).c(j, 'Map error', 1);
   w.c('Read image', 'Map error', 1).c('Read prompt', 'Map error', 1);
 
-  // Path B: diagnose_research, raw HTTP Request to the Messages API with server tools
-  w.add(n.code('Build request', `// No node builds a Messages API body with server-side web tools (the contrast lesson, PLAN §5.1).
+  // Path B: diagnose_research, raw HTTP Request to the Gemini API with Google Search grounding
+  w.add(n.code('Build request', `// No node sends a Gemini request with the google_search tool (the contrast lesson, PLAN §5.1).
 const DIAG_WEB_DOMAINS = ${JSON.stringify(DIAG_WEB_DOMAINS)};
 const ctx = String($('Task').first().json.context).replace(/<\\/?context\\b/gi, '[tag]');
-const body = { model: $env.MASTER_MODEL, max_tokens: 32000, output_config: { effort: 'high' },
-  // server-side fallback on a refusal (claude-api default for Opus 5.5)
-  fallbacks: 'default',
-  system: $('Prompt text').first().json.prompt,
-  messages: [{ role: 'user', content: [{ type: 'text', text: '<context>\\n' + ctx + '\\n</context>' }] }],
-  tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 10, allowed_domains: DIAG_WEB_DOMAINS },
-          { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 10, allowed_domains: DIAG_WEB_DOMAINS }] };
-return [{ json: { body, resumes: 0, retries: 0, searches: 0, input_tokens: 0, output_tokens: 0 } }];`));
+const body = { systemInstruction: { parts: [{ text: $('Prompt text').first().json.prompt }] },
+  contents: [{ role: 'user', parts: [{ text: '<context>\\n' + ctx + '\\n</context>\\nCite sources only on these sites: ' + DIAG_WEB_DOMAINS.join(', ') }] }],
+  tools: [{ google_search: {} }], generationConfig: { maxOutputTokens: 32000 } };
+return [{ json: { body, retries: 0 } }];`));
   w.c('Path', 'Build request', 2);
-  w.add(n.http('Messages API', {
-    method: 'POST', url: 'https://api.anthropic.com/v1/messages', auth: 'anthropicHeader',
-    headers: { 'anthropic-version': ANTHROPIC_VERSION, 'anthropic-beta': 'server-side-fallback-2026-07-01', 'content-type': 'application/json' },
+  w.add(n.http('Gemini API', {
+    method: 'POST', url: "={{ 'https://generativelanguage.googleapis.com/v1beta/models/' + $env.MASTER_MODEL + ':generateContent' }}", auth: 'gemini',
     json: '={{ JSON.stringify($json.body) }}', timeout: 600000, full: true, never: true,
   }));
-  w.add(n.code('Check response', `// No node handles pause_turn, retry-after and "parse the last JSON object" for a raw API reply.
-const prev = $('Messages API').isExecuted && $input.first().json ? $input.first().json : {};
+  w.add(n.code('Check response', `// No node handles retry-after, Gemini error codes and "parse the last JSON object" for a raw API reply.
+const DIAG_WEB_DOMAINS = ${JSON.stringify(DIAG_WEB_DOMAINS)};
 const st = $('Next call').isExecuted ? $('Next call').last().json : $('Build request').first().json;
-const r = prev; const code = Number(r.statusCode ?? 0); const b = r.body ?? {};
-const usage = { input_tokens: st.input_tokens + (b.usage?.input_tokens ?? 0), output_tokens: st.output_tokens + (b.usage?.output_tokens ?? 0),
-  web_search_requests: st.searches + (b.usage?.server_tool_use?.web_search_requests ?? 0) };
+const r = $input.first().json ?? {}; const code = Number(r.statusCode ?? 0); const b = r.body ?? {};
+const c0 = (b.candidates ?? [])[0] ?? {}; const um = b.usageMetadata ?? {};
+const usage = { input_tokens: um.promptTokenCount ?? 0, output_tokens: (um.candidatesTokenCount ?? 0) + (um.thoughtsTokenCount ?? 0),
+  web_search_requests: (c0.groundingMetadata?.webSearchQueries ?? []).length };
 const fail = (reason, detail) => [{ json: { done: true, ok: false, reason, detail: String(detail).slice(0, 2000), usage } }];
-if ([429, 529].includes(code) || code >= 500) {
+const err = JSON.stringify(b).slice(0, 1500);
+if (code === 429 || code >= 500) {
   if (st.retries < 1) return [{ json: { done: false, wait: Math.min(60, Number(r.headers?.['retry-after']) || 20), next: { ...st, retries: st.retries + 1 } } }];
-  return fail(code === 429 ? 'limit' : 'down', 'HTTP ' + code);
+  return fail(code === 429 ? 'limit' : 'down', 'HTTP ' + code + ' ' + err);
 }
-if (code === 401 || code === 403) return fail('auth', 'HTTP ' + code);
-if (code !== 200) return fail(code === 400 ? 'invalid' : 'down', 'HTTP ' + code + ' ' + JSON.stringify(b).slice(0, 1500));
-if (b.stop_reason === 'pause_turn') {
-  if (st.resumes >= 3) return fail('invalid', 'pause_turn 3 times');
-  // resend with the paused reply appended; no new user message
-  const body = { ...st.body, messages: [...st.body.messages, { role: 'assistant', content: b.content }] };
-  return [{ json: { done: false, wait: 0, next: { ...st, body, resumes: st.resumes + 1, retries: 0, searches: usage.web_search_requests, input_tokens: usage.input_tokens, output_tokens: usage.output_tokens } } }];
-}
-if (b.stop_reason !== 'end_turn') return fail('invalid', 'stop_reason ' + b.stop_reason);
-const blocks = b.content ?? []; let last = -1;
-blocks.forEach((x, i) => { if (/_tool_result$/.test(x.type)) last = i; });
-const text = blocks.slice(last + 1).filter((x) => x.type === 'text').map((x) => x.text).join('');
+// Gemini answers a bad key with 400 API_KEY_INVALID
+if (code === 401 || code === 403 || /API_KEY_INVALID|API key not valid/i.test(err)) return fail('auth', 'HTTP ' + code);
+if (code !== 200) return fail(code === 400 ? 'invalid' : 'down', 'HTTP ' + code + ' ' + err);
+if (c0.finishReason !== 'STOP') return fail('invalid', 'finishReason ' + c0.finishReason);
+const text = (c0.content?.parts ?? []).filter((x) => x.text && !x.thought).map((x) => x.text).join('');
 const end = text.lastIndexOf('}'); let obj = null;
 for (let s = text.lastIndexOf('{', end); s >= 0 && !obj; s = text.lastIndexOf('{', s - 1)) { try { obj = JSON.parse(text.slice(s, end + 1)); if (!obj.in_use) obj = null; } catch {} }
 if (!obj) return fail('invalid', 'no JSON object with in_use at the end of the reply');
 const arr = (a) => (Array.isArray(a) ? a : []);
+// google_search has no domain filter: keep a source link only when it is on an allowed site
+const src = (u) => { const h = (/^https:\\/\\/([^/:?#]+)/i.exec(String(u ?? '')) ?? [])[1]?.toLowerCase(); return h && DIAG_WEB_DOMAINS.some((d) => h === d || h.endsWith('.' + d)) ? String(u) : ''; };
 const json = {
-  in_use: arr(obj.in_use).map((x) => ({ model: String(x.model ?? ''), free: ['yes', 'no', 'unknown'].includes(x.free) ? x.free : 'unknown', limits: String(x.limits ?? '').slice(0, 300), source_url: String(x.source_url ?? '') })),
-  candidates: arr(obj.candidates).slice(0, 3).filter((c) => /^(gemini|groq|ollama):[A-Za-z0-9._:\\/-]{1,100}$/.test(c.model)).map((c) => ({ model: c.model, agents: arr(c.agents).filter((a) => ${JSON.stringify(AGENTS)}.includes(a)), why: String(c.why ?? '').slice(0, 500), free: String(c.free ?? ''), size_gb: Number(c.size_gb) || null, source_url: String(c.source_url ?? '') })),
-  other_options: arr(obj.other_options).slice(0, 10).map((o) => ({ text: String(o.text ?? '').slice(0, 500), source_url: String(o.source_url ?? '') })),
+  in_use: arr(obj.in_use).map((x) => ({ model: String(x.model ?? ''), free: ['yes', 'no', 'unknown'].includes(x.free) ? x.free : 'unknown', limits: String(x.limits ?? '').slice(0, 300), source_url: src(x.source_url) })),
+  candidates: arr(obj.candidates).slice(0, 3).filter((c) => /^(gemini|groq|ollama):[A-Za-z0-9._:\\/-]{1,100}$/.test(c.model)).map((c) => ({ model: c.model, agents: arr(c.agents).filter((a) => ${JSON.stringify(AGENTS)}.includes(a)), why: String(c.why ?? '').slice(0, 500), free: String(c.free ?? ''), size_gb: Number(c.size_gb) || null, source_url: src(c.source_url) })),
+  other_options: arr(obj.other_options).slice(0, 10).map((o) => ({ text: String(o.text ?? '').slice(0, 500), source_url: src(o.source_url) })),
 };
-return [{ json: { done: true, ok: true, json, model: b.model ?? $env.MASTER_MODEL, usage } }];`));
+return [{ json: { done: true, ok: true, json, model: b.modelVersion ?? $env.MASTER_MODEL, usage } }];`));
   w.add(n.iff('Done?', [['={{ $json.done }}', 'boolean:true']]));
   w.add({ name: 'Wait retry', type: B + 'wait', typeVersion: 1.1, parameters: { amount: '={{ $json.wait || 1 }}', unit: 'seconds' }, webhookId: 'sc-ask-master-wait' });
-  w.add(n.set('Next call', [['body', '={{ $json.next.body }}', 'object'], ['resumes', '={{ $json.next.resumes }}', 'number'], ['retries', '={{ $json.next.retries }}', 'number'],
-    ['searches', '={{ $json.next.searches }}', 'number'], ['input_tokens', '={{ $json.next.input_tokens }}', 'number'], ['output_tokens', '={{ $json.next.output_tokens }}', 'number']]));
-  w.chain('Build request', 'Messages API', 'Check response', 'Done?');
-  w.c('Done?', 'Wait retry', 1).chain('Wait retry', 'Next call', 'Messages API');
+  w.add(n.set('Next call', [['body', '={{ $json.next.body }}', 'object'], ['retries', '={{ $json.next.retries }}', 'number']]));
+  w.chain('Build request', 'Gemini API', 'Check response', 'Done?');
+  w.c('Done?', 'Wait retry', 1).chain('Wait retry', 'Next call', 'Gemini API');
 
   // log every call (skips included), then answer
   w.add(n.set('Answer', [
@@ -296,14 +286,14 @@ RETURNING id, status, triage_from, triage_at, attempts, left(last_error, 2000) A
   w.add(n.extractText('Prompt text', 'prompt'));
   w.add(n.agent('Master', `={{ 'Job ' + $('Pick').first().json.job + ' is in triage. Find out why it failed and pick one action.\\n' + ${ctxWrap("JSON.stringify($('Pick').first().json)")} }}`,
     '={{ $json.prompt }}', { maxIterations: 10 }));
-  w.add(n.anthropic('Claude', 'high', 16000));
+  w.add(n.master('Model'));
   w.add(n.parser('Answer format', TRIAGE_SCHEMA));
-  w.sub('Claude', 'Master', 'ai_languageModel').sub('Answer format', 'Master', 'ai_outputParser');
+  w.sub('Model', 'Master', 'ai_languageModel').sub('Answer format', 'Master', 'ai_outputParser');
   agentTools(w, 'Master', 'triage', "={{ $('Pick').first().json.job }}", ['get_job', 'crew_stats', 'retry_job', 'redo_job', 'fail_job', 'reject_job']);
   w.chain('Every 5 min', 'Pick', 'Read prompt', 'Prompt text', 'Master');
   w.add(n.code('Outcome', `// No node reads the agent's tool steps to see whether an action tool succeeded.
 const r = $input.first().json;
-// the agent may put a sub-node error (Anthropic down, bad key) on its main output
+// the agent may put a sub-node error (Gemini down, bad key) on its main output
 if (r.error || !r.output) return [{ json: { acted: false, output: { skipped: 'down', detail: String(r.error?.message ?? r.error ?? 'no answer').slice(0, 500) }, tools: [] } }];
 const steps = r.intermediateSteps ?? [];
 const acts = steps.filter((s) => ['retry_job', 'redo_job', 'fail_job', 'reject_job'].includes(s.action?.tool));
@@ -341,9 +331,9 @@ export function scMasterDaily() {
   w.add(n.extractText('Prompt text', 'prompt'));
   w.add(n.agent('Master', `={{ 'Check the crew and write today\\'s brief.\\n' + ${ctxWrap("JSON.stringify({ ...$('Snapshot').first().json.snapshot, agent_stats_24h: $('Crew stats').first().json.result })")} }}`,
     '={{ $json.prompt }}', { maxIterations: 10 }));
-  w.add(n.anthropic('Claude', '={{ $env.MASTER_EFFORT || "medium" }}', 16000));
+  w.add(n.master('Model'));
   w.add(n.parser('Answer format', DAILY_SCHEMA));
-  w.sub('Claude', 'Master', 'ai_languageModel').sub('Answer format', 'Master', 'ai_outputParser');
+  w.sub('Model', 'Master', 'ai_languageModel').sub('Answer format', 'Master', 'ai_outputParser');
   agentTools(w, 'Master', 'daily', fromAI('job', 'The job id from list_stuck, e.g. SC-0042'), ['get_job', 'crew_stats', 'list_stuck', 'retry_job', 'reject_job']);
   w.chain('Daily 21:00', 'Snapshot', 'Crew stats', 'Read prompt', 'Prompt text', 'Master');
   w.add(n.code('Brief', `// No node decides whether today needs a brief and HTML-escapes the Master's text.
@@ -370,7 +360,7 @@ return [{ json: { send, result: { ...o, tools: steps }, subject: 'ShortCircuit M
   w.add(n.pg('Log down', logSql, ['null', "'daily'", n.J('{ skipped: "down", detail: String($json.error?.message ?? $json.error ?? "error").slice(0, 500) }'), 'null']));
   w.add(n.pg('Master worked lately?', `SELECT EXISTS (SELECT 1 FROM master_log WHERE created_at > now() - interval '24 hours' AND task IN ('review_script', 'review_video', 'triage', 'daily', 'diagnose_grade', 'diagnose_research') AND NOT (result ? 'skipped')) AS ok;`));
   w.add(n.iff('Down 24 h?', [['={{ $json.ok }}', 'boolean:false']]));
-  w.add(n.alert('Alert down', "'master_down'", "'The Master has not worked for 24 h'", "'No Master call succeeded in the last 24 hours (API outage, spend limit or a revoked key). Reviews are skipped and triage jobs end as failed after 6 h until it is back. Check the Anthropic credential and the Console usage page.'"));
+  w.add(n.alert('Alert down', "'master_down'", "'The Master has not worked for 24 h'", "'No Master call succeeded in the last 24 hours (API outage, free-tier limit or a revoked key). Reviews are skipped and triage jobs end as failed after 6 h until it is back. Check the Gemini credential and the AI Studio usage page.'"));
   w.c('Master', 'Log down', 1).chain('Log down', 'Master worked lately?', 'Down 24 h?', 'Alert down');
   return w;
 }

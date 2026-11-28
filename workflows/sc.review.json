@@ -27,7 +27,7 @@
           ]
         }
       },
-      "id": "a16ab595-4645-cd05-eb69-711186774e2e",
+      "id": "771c554c-4aec-7d22-26fe-0db94bfe22ac",
       "position": [
         0,
         0
@@ -42,7 +42,7 @@
         "language": "javaScript",
         "jsCode": "// No node maps a review kind to its state and time limit.\nconst i = $input.first().json;\nconst state = { script: 'script_review', video: 'video_review', needs_human: 'needs_human' }[i.kind];\nif (!state || !Number.isInteger(Number(i.job_id))) throw new Error('sc.review: bad input ' + JSON.stringify(i));\n// REVIEW_HOURS is checked by apply-env.sh; NEEDS YOU waits 4 times as long (12 h → 48 h).\nconst h = Number($env.REVIEW_HOURS);\nif (!Number.isInteger(h) || h < 1 || h > 48) throw new Error('sc.review: REVIEW_HOURS must be 1-48');\nreturn [{ json: { job_id: Number(i.job_id), kind: i.kind, state, hours: i.kind === 'needs_human' ? 4 * h : h, reason: String(i.reason ?? '') } }];"
       },
-      "id": "41d72e85-77c4-2e00-9785-3150692c6b5f",
+      "id": "ef262196-bc3e-ec81-529f-fc78e39bde61",
       "position": [
         260,
         0
@@ -65,7 +65,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "139152ec-f06b-93c3-bc43-814b70be1989",
+      "id": "31bb620b-db30-1653-15e2-bda5ecf773a9",
       "position": [
         520,
         0
@@ -80,7 +80,7 @@
         "language": "javaScript",
         "jsCode": "// No node HTML-escapes text or builds the review mail.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst j = $input.first().json; const k = $('Kind').first().json;\nconst s = j.script ?? {}; const b = j.brief ?? {}; const c = j.check_result ?? {};\nconst when = (t) => fmt(t);\nlet reason = k.reason;\nif (k.kind === 'needs_human' && !reason) reason = j.round >= 3 ? '3 rounds used' : 'the Checker flagged: ' + [...(c.unsupported_claims ?? []), ...(c.policy_issues ?? []), ...(c.rules ?? [])].join('; ').slice(0, 300);\nconst subject = k.kind === 'script' ? '[' + j.job + '] Script — auto-approves ' + when(j.review_deadline)\n  : k.kind === 'video' ? '[' + j.job + '] Video — publishes ' + when(j.slot_at) + ' — auto-approves ' + when(j.review_deadline)\n  : '[' + j.job + '] NEEDS YOU: ' + reason;\nconst li = (arr) => '<ul>' + arr.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>';\nlet body = '<p><b>' + esc(s.title) + '</b></p><p><i>' + esc(s.hook) + '</i></p>';\nbody += '<ol>' + (s.scenes ?? []).map((x) => '<li>' + esc(x.narration) + '</li>').join('') + '</ol>';\nbody += '<p>' + esc(s.description) + '</p><p style=\"color:#666\">Tags: ' + esc((s.tags ?? []).join(', ')) + '</p>';\nif (s.editor_notes) body += '<p><b>Editor:</b> ' + esc(s.editor_notes) + '</p>';\nconst flags = [...(c.unsupported_claims ?? []), ...(c.policy_issues ?? []), ...(c.rules ?? [])];\nbody += '<p><b>Fact check:</b> ' + (c.pass ? 'clean' : 'flagged') + '</p>' + (flags.length ? li(flags) : '');\nbody += '<p><b>Sources</b></p><ul>' + (b.sources ?? []).map((x) => okUrl(x.url) ? '<li><a href=\"' + esc(okUrl(x.url)) + '\">' + esc(x.title || x.url) + '</a> (' + esc(x.publisher) + ')</li>' : '').join('') + '</ul>';\nif (k.kind === 'video') body = button(j.drive_link, 'Watch on Drive') + '<p>Publishes ' + esc(when(j.slot_at)) + '.</p>' + body + cancelLink(j.id);\nif (k.kind === 'needs_human') body = '<p><b>Why:</b> ' + esc(reason) + '</p><p>No answer by ' + esc(when(j.review_deadline)) + ' drops this job. Only Approve renders it.</p>' + body;\nelse body = '<p>Silence approves at ' + esc(when(j.review_deadline)) + '. Open the form only to change or stop it.</p>' + body;\nreturn [{ json: { subject: subject.replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]/g, ' ').slice(0, 200), html: page(j.job + ' · ' + (s.title ?? ''), body), deadline: j.review_deadline, job_id: j.id, job: j.job } }];"
       },
-      "id": "de0049b4-5f0a-7f67-88a2-12f5015cbf93",
+      "id": "2eb959cf-2ec4-4d53-cd5a-c19d1cdffee9",
       "position": [
         1040,
         0
@@ -151,7 +151,7 @@
       "waitBetweenTries": 15000,
       "onError": "continueErrorOutput",
       "webhookId": "e9e87836-2b4d-a810-e172-858be66a309a",
-      "id": "2e256940-2290-48f4-e45e-54880d8ceac5",
+      "id": "a16ab595-4645-cd05-eb69-711186774e2e",
       "position": [
         1300,
         0
@@ -174,7 +174,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "12688d31-cb72-5f7f-497b-bf36aebc8cc6",
+      "id": "41d72e85-77c4-2e00-9785-3150692c6b5f",
       "position": [
         1560,
         0
@@ -187,7 +187,7 @@
       "parameters": {
         "errorMessage": "={{ 'sc.review could not send the form: ' + ($json.error?.message ?? $json.error ?? 'unknown') }}"
       },
-      "id": "1cdeca36-6cd7-ef38-455a-f1b8c98b1f90",
+      "id": "139152ec-f06b-93c3-bc43-814b70be1989",
       "position": [
         1820,
         0
@@ -202,7 +202,7 @@
         "language": "javaScript",
         "jsCode": "// No node maps a form answer (or a time-out) to a decision code.\n// On a time-out Send and Wait passes its input through (no data); a send error must never read as silence.\nif ($input.first().json.error) throw new Error('sc.review: the form mail failed, nothing applied: ' + $input.first().json.error);\nconst d = $input.first().json.data;\nconst map = {\"Approve\":\"approve\",\"Approve with these changes\":\"approve_changes\",\"Revise and show me again\":\"revise\",\"Reject\":\"reject\"};\nconst decision = d && map[d.Decision] ? map[d.Decision] : 'timeout';\nreturn [{ json: { decision, notes: String(d?.Notes ?? '').trim().slice(0, 4000) } }];"
       },
-      "id": "0a3bab0a-43b3-8d9d-cbd0-f3fb2181b59f",
+      "id": "de0049b4-5f0a-7f67-88a2-12f5015cbf93",
       "position": [
         1560,
         220
@@ -237,7 +237,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "cf1837d5-7d85-92ab-4ca4-e3f7728b6eb6",
+      "id": "2e256940-2290-48f4-e45e-54880d8ceac5",
       "position": [
         1820,
         220
@@ -260,7 +260,7 @@
       },
       "onError": "continueRegularOutput",
       "alwaysOutputData": true,
-      "id": "a0e9677a-5110-150a-995d-548f90b21a20",
+      "id": "12688d31-cb72-5f7f-497b-bf36aebc8cc6",
       "position": [
         2080,
         0
@@ -275,7 +275,7 @@
         "language": "javaScript",
         "jsCode": "// Sanitize drops failed items: refuse to go on without the cleaned text.\nconst t = $input.first().json.guardrailsInput;\nif (typeof t !== 'string') throw new Error('Guardrails could not sanitize the owner notes');\nreturn [{ json: { decision: $('Decision').first().json.decision, notes: t } }];"
       },
-      "id": "c855b584-49b4-b848-0b6a-4f2bed5222c2",
+      "id": "1cdeca36-6cd7-ef38-455a-f1b8c98b1f90",
       "position": [
         2340,
         0
@@ -310,7 +310,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "f9c4d9e1-2cdb-5769-5c49-9a9ce2e847fc",
+      "id": "0a3bab0a-43b3-8d9d-cbd0-f3fb2181b59f",
       "position": [
         2600,
         0
@@ -333,7 +333,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "78484ada-de10-1a07-8231-f6038079392a",
+      "id": "cf1837d5-7d85-92ab-4ca4-e3f7728b6eb6",
       "position": [
         2860,
         0
@@ -398,7 +398,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "id": "428159d3-ba6f-9a1d-eaff-4a47271f2002",
+      "id": "a0e9677a-5110-150a-995d-548f90b21a20",
       "position": [
         3380,
         0
@@ -422,7 +422,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "8ad4abf4-43fb-cb9a-743f-3c57d0aca978",
+      "id": "c855b584-49b4-b848-0b6a-4f2bed5222c2",
       "position": [
         2860,
         220
@@ -457,7 +457,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "789bf4cf-b3b1-6c4b-d1c4-0450fca64a94",
+      "id": "f9c4d9e1-2cdb-5769-5c49-9a9ce2e847fc",
       "position": [
         3120,
         0
@@ -472,7 +472,7 @@
         "language": "javaScript",
         "jsCode": "// No node HTML-escapes text.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst r = $input.first().json;\nconst why = r.newer_form ? 'This form was replaced by a newer one; use the newest mail.' : r.job + ' is now ' + r.status_now + '; your answer was not applied.';\nreturn [{ json: { subject: '[' + r.job + '] Not applied', html: page(r.job + ' · not applied', '<p>' + esc(why) + '</p>') } }];"
       },
-      "id": "99447557-0f89-88c1-8f64-e7b2d81beb67",
+      "id": "78484ada-de10-1a07-8231-f6038079392a",
       "position": [
         3380,
         220
@@ -527,7 +527,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "1219ffb2-1b64-28b3-72ac-cf2d07b0832d",
+      "id": "428159d3-ba6f-9a1d-eaff-4a47271f2002",
       "position": [
         3640,
         0
@@ -562,7 +562,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "df26b703-a65f-b0b9-8e89-86d24912d136",
+      "id": "8ad4abf4-43fb-cb9a-743f-3c57d0aca978",
       "position": [
         780,
         0
@@ -597,7 +597,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "d0040ec6-6c7d-f5c5-5627-ec1ab1097065",
+      "id": "789bf4cf-b3b1-6c4b-d1c4-0450fca64a94",
       "position": [
         3120,
         220

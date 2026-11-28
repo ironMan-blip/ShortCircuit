@@ -11,8 +11,6 @@ export const CRED = {
   gemini: { googlePalmApi: { id: 'scCredGemini0001', name: 'Gemini' } },
   groq: { groqApi: { id: 'scCredGroq000001', name: 'Groq' } },
   ollama: { ollamaApi: { id: 'scCredOllama0001', name: 'Ollama' } },
-  anthropic: { anthropicApi: { id: 'scCredAnthropic1', name: 'Anthropic' } },
-  anthropicHeader: { httpHeaderAuth: { id: 'scCredAnthHeader', name: 'Anthropic Header' } },
   cancelForm: { httpBasicAuth: { id: 'scCredCancelForm', name: 'SC Cancel Form' } },
 };
 
@@ -24,8 +22,6 @@ export const STUB_CREDS = [
   ['scCredGemini0001', 'Gemini', 'googlePalmApi', { host: 'https://generativelanguage.googleapis.com', apiKey: '' }],
   ['scCredGroq000001', 'Groq', 'groqApi', { apiKey: '' }],
   ['scCredOllama0001', 'Ollama', 'ollamaApi', { baseUrl: 'http://host.docker.internal:11434' }],
-  ['scCredAnthropic1', 'Anthropic', 'anthropicApi', { apiKey: '' }],
-  ['scCredAnthHeader', 'Anthropic Header', 'httpHeaderAuth', { name: 'x-api-key', value: '' }],
   ['scCredCancelForm', 'SC Cancel Form', 'httpBasicAuth', { user: 'owner', password: '' }],
 ];
 
@@ -183,12 +179,12 @@ export const readFile = (name, pathExpr, o = {}) => N(name, B + 'readWriteFile',
 export const writeFile = (name, pathExpr, prop = 'data') => N(name, B + 'readWriteFile', 1, { operation: 'write', fileName: pathExpr, dataPropertyName: prop, options: {} });
 export const extractText = (name, dest = 'text') => N(name, B + 'extractFromFile', 1, { operation: 'text', destinationKey: dest, options: {} });
 
-// HTTP request. o: {method, url, auth: 'yt'|'drive'|'anthropicHeader', query:{}, headers:{}, json: expr, timeout, proxy, full, never, format, err, retry}
+// HTTP request. o: {method, url, auth: 'yt'|'drive'|'gemini', query:{}, headers:{}, json: expr, timeout, proxy, full, never, format, err, retry}
 export const http = (name, o) => {
   const p = { method: o.method ?? 'GET', url: o.url };
   if (o.auth === 'yt') Object.assign(p, { authentication: 'predefinedCredentialType', nodeCredentialType: 'youTubeOAuth2Api' });
   if (o.auth === 'drive') Object.assign(p, { authentication: 'predefinedCredentialType', nodeCredentialType: 'googleDriveOAuth2Api' });
-  if (o.auth === 'anthropicHeader') Object.assign(p, { authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth' });
+  if (o.auth === 'gemini') Object.assign(p, { authentication: 'predefinedCredentialType', nodeCredentialType: 'googlePalmApi' });
   if (o.query) Object.assign(p, { sendQuery: true, queryParameters: { parameters: Object.entries(o.query).map(([name, value]) => ({ name, value })) } });
   if (o.headers) Object.assign(p, { sendHeaders: true, headerParameters: { parameters: Object.entries(o.headers).map(([name, value]) => ({ name, value })) } });
   if (o.json) Object.assign(p, { sendBody: true, specifyBody: 'json', jsonBody: o.json });
@@ -198,7 +194,7 @@ export const http = (name, o) => {
     ...(o.full || o.never || o.format ? { response: { response: { ...(o.full ? { fullResponse: true } : {}), ...(o.never ? { neverError: true } : {}), ...(o.format ? { responseFormat: o.format } : {}) } } } : {}),
   };
   if (o.soft) Object.assign(o, { err: false });
-  const creds = o.auth === 'yt' ? CRED.yt : o.auth === 'drive' ? CRED.drive : o.auth === 'anthropicHeader' ? CRED.anthropicHeader : undefined;
+  const creds = o.auth === 'yt' ? CRED.yt : o.auth === 'drive' ? CRED.drive : o.auth === 'gemini' ? CRED.gemini : undefined;
   return N(name, B + 'httpRequest', 4.2, p, { ...(creds ? { credentials: creds } : {}), ...onErr(o.err), ...retry(o.retry),
     ...(o.soft ? { onError: 'continueRegularOutput', alwaysOutputData: true } : {}), ...(o.once ? { executeOnce: true } : {}) });
 };
@@ -220,11 +216,8 @@ export const chain = (name, textExpr, systemExpr, o = {}) => N(name, L + 'chainL
 export const gemini = (name, modelExpr, temp) => N(name, L + 'lmChatGoogleGemini', 1, { modelName: modelExpr, options: { temperature: temp, maxOutputTokens: 8192 } }, { credentials: CRED.gemini });
 export const groq = (name, modelExpr, temp) => N(name, L + 'lmChatGroq', 1, { model: modelExpr, options: { temperature: temp, maxTokensToSample: 8192 } }, { credentials: CRED.groq });
 export const ollama = (name, modelExpr, temp) => N(name, L + 'lmChatOllama', 1, { model: modelExpr, options: { temperature: temp, numCtx: 16384, keepAlive: '10m', think: false, format: 'json' } }, { credentials: CRED.ollama });
-// effort: expression or literal; maxTokens
-export const anthropic = (name, effortExpr, maxTokens = 16000) => N(name, L + 'lmChatAnthropic', 1.6, {
-  model: { __rl: true, mode: 'id', value: '={{ $env.MASTER_MODEL }}' },
-  options: { maxTokensToSample: maxTokens, thinkingMode: 'adaptive', effort: effortExpr },
-}, { credentials: CRED.anthropic });
+// The Master: Gemini free tier, model from MASTER_MODEL (no card needed, unlike Anthropic).
+export const master = (name) => gemini(name, "={{ 'models/' + $env.MASTER_MODEL }}", 0.2);
 
 export const parser = (name, schemaExprOrObj, o = {}) => N(name, L + 'outputParserStructured', 1.3, {
   schemaType: 'manual', inputSchema: typeof schemaExprOrObj === 'string' ? schemaExprOrObj : JSON.stringify(schemaExprOrObj, null, 2),

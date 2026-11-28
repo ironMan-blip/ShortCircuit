@@ -27,7 +27,7 @@
           ]
         }
       },
-      "id": "f9cc7d0a-a690-cfd3-47fd-8c4bec91df67",
+      "id": "29b7d894-c92b-81e5-70c0-8984bc65708a",
       "position": [
         0,
         0
@@ -62,7 +62,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "e20008bf-f236-6c92-213a-f56f3228fd5b",
+      "id": "493bffef-9959-0991-1712-15379388c84f",
       "position": [
         260,
         0
@@ -85,7 +85,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "c13ccd25-8838-635c-dba2-5eb19de395d8",
+      "id": "fcc612f4-a012-4012-226c-edeb8f120936",
       "position": [
         520,
         0
@@ -120,7 +120,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "5a0d7356-0b49-0546-50bd-042eb1fc6cf4",
+      "id": "98ad53f0-f291-0508-ffed-a57499b2d0d6",
       "position": [
         780,
         0
@@ -135,7 +135,7 @@
         "language": "javaScript",
         "jsCode": "// No node validates a single address or strips control characters from a header.\nconst to = $env.OWNER_EMAIL ?? '';\nif (!/^[^@,;\\s]+@[^@,;\\s.]+(\\.[^@,;\\s.]+)+$/.test(to)) throw new Error('OWNER_EMAIL is empty or not exactly one address; nothing sent');\nconst i = $input.first().json;\nconst subject = String(i.subject ?? '').replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]/g, ' ').slice(0, 200).trim();\nif (!subject || !i.html) throw new Error('sc.mail needs a subject and html');\nreturn [{ json: { job_id: i.job_id ?? null, subject, html: String(i.html) } }];"
       },
-      "id": "70672ad1-34c3-bfe4-ef3b-7617abd82bb3",
+      "id": "f9cc7d0a-a690-cfd3-47fd-8c4bec91df67",
       "position": [
         1040,
         0
@@ -165,7 +165,7 @@
       "waitBetweenTries": 15000,
       "onError": "continueErrorOutput",
       "webhookId": "de70a9c3-d2b2-6430-6187-75e41ce0c825",
-      "id": "7845f66e-af9b-475c-20c6-7e03e5922110",
+      "id": "e20008bf-f236-6c92-213a-f56f3228fd5b",
       "position": [
         1300,
         0
@@ -178,7 +178,7 @@
       "parameters": {
         "errorMessage": "={{ 'Gmail send failed: ' + ($json.error?.message ?? $json.error ?? 'unknown') }}"
       },
-      "id": "425e6856-933c-9697-3fdc-be89717ae582",
+      "id": "c13ccd25-8838-635c-dba2-5eb19de395d8",
       "position": [
         1560,
         0
@@ -213,7 +213,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "b5048aa8-85a2-dbcb-32dd-2db99146b96e",
+      "id": "5a0d7356-0b49-0546-50bd-042eb1fc6cf4",
       "position": [
         1560,
         220
@@ -236,7 +236,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "49099083-8a76-3812-b314-66bbe2fd82c3",
+      "id": "70672ad1-34c3-bfe4-ef3b-7617abd82bb3",
       "position": [
         1820,
         0

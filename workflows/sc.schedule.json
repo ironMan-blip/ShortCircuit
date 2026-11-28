@@ -18,7 +18,7 @@
           ]
         }
       },
-      "id": "0636b758-9942-8ed2-7aee-b0693f9cd9f7",
+      "id": "11ac3b00-9dbd-e042-9be2-b44bd83769e8",
       "position": [
         0,
         0
@@ -42,7 +42,7 @@
         }
       },
       "alwaysOutputData": true,
-      "id": "b638471c-687a-c2e1-cb04-e284aa98be1b",
+      "id": "22473aec-451f-1f77-d7bc-04bd32cd0e40",
       "position": [
         260,
         0
@@ -63,7 +63,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "95c37abd-c854-8651-3ff9-f9026be2507d",
+      "id": "0a965a3b-957e-9541-b340-66c2ce9802c6",
       "position": [
         520,
         0
@@ -78,7 +78,7 @@
         "language": "javaScript",
         "jsCode": "// No node computes medians per time × weekday; code computes, the model only picks (PLAN §4.7).\nconst DAYS = [\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\"];\nconst cands = String($env.SCHEDULE_CANDIDATES ?? '12:00,15:00,18:00,21:00').split(',').map((s) => s.trim()).filter((s) => /^[0-2][0-9]:[0-5][0-9]$/.test(s));\nconst cur = $input.first().json.current ?? {};\nconst current = Object.fromEntries(DAYS.map((d, i) => [d, cur[i] ?? $env.PUBLISH_TIME ?? '18:00']));\nconst rows = $('Published').all().map((i) => i.json).filter((r) => r.id);\nconst med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };\nconst stats = [];\nfor (const [i, d] of DAYS.entries()) for (const t of cands) {\n  const r = rows.filter((x) => x.dow === i && x.time === t && x.views != null);\n  stats.push({ weekday: d, time: t, videos: r.length, median_views_48h: med(r.map((x) => x.views)), engagement: med(r.map((x) => x.views ? (x.likes + x.comments) / x.views : 0)) });\n}\nconst week = Math.floor((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 1)) / 6048e5);\nconst rotate = Object.fromEntries(DAYS.map((d, i) => [d, cands[(i + week) % cands.length]]));\nreturn [{ json: { cold: rows.length < 12, published: rows.length, cands, current, stats, rotate } }];"
       },
-      "id": "a184995f-f120-7525-d5de-20977a634a8f",
+      "id": "f19a698d-3321-ef65-a64f-ff5956a160be",
       "position": [
         780,
         0
@@ -98,7 +98,7 @@
           },
           "conditions": [
             {
-              "id": "4da04ac9-ca27-f456-36a2-9eb8c783a039",
+              "id": "9b9e06f6-c749-2fb8-8201-1f636408377b",
               "leftValue": "={{ $json.cold }}",
               "rightValue": "",
               "operator": {
@@ -113,7 +113,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "c633801b-7948-1819-3cc6-807d4cea4e54",
+      "id": "0636b758-9942-8ed2-7aee-b0693f9cd9f7",
       "position": [
         1040,
         0
@@ -212,7 +212,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "48bc4c51-bf8c-136a-4e1d-58b637662242",
+      "id": "b638471c-687a-c2e1-cb04-e284aa98be1b",
       "position": [
         1300,
         0
@@ -227,7 +227,7 @@
         "language": "javaScript",
         "jsCode": "// No node checks the Scheduler's pick against the rules; invalid → keep the current schedule.\nconst s = $('Stats').first().json; const cold = s.cold;\nconst r = cold ? { json: { week: s.rotate, explore_day: null, confidence: 'low', reason: 'cold start: ' + s.published + ' videos published, rotating the candidates' } } : $input.first().json;\nconst o = r.json ?? {}; const DAYS = [\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\"];\nconst problems = [];\nif (!r.json) problems.push('Scheduler failed: ' + String(r.error?.message ?? r.error ?? 'no output').slice(0, 200));\nconst next = { ...s.current };\nif (!problems.length) {\n  if (!DAYS.every((d) => s.cands.includes(o.week?.[d]))) problems.push('a time is not one of SCHEDULE_CANDIDATES');\n  const changed = DAYS.filter((d) => o.week?.[d] !== s.current[d]);\n  if (!cold) {\n    const stat = (d, t) => s.stats.find((x) => x.weekday === d && x.time === t) ?? {};\n    // a gap under 20 % or < 5 videos is noise: that day keeps its time (explore day excepted)\n    for (const d of changed) if (d !== o.explore_day) { const a = stat(d, o.week[d]), b = stat(d, s.current[d]); if (!(a.videos >= 5 && (a.median_views_48h ?? 0) >= 1.2 * (b.median_views_48h ?? 0))) o.week[d] = s.current[d]; }\n    const kept = DAYS.filter((d) => o.week?.[d] !== s.current[d]);\n    if (kept.filter((d) => d !== o.explore_day).length > 2) problems.push('more than 2 weekdays changed');\n  }\n  if (!problems.length) Object.assign(next, o.week);\n}\nconst changed = DAYS.filter((d) => next[d] !== s.current[d]);\nreturn [{ json: { week: next, rows: DAYS.map((d, i) => ({ dow: i, time: next[d] })), changed: changed.length > 0, changed_days: changed, problems, confidence: o.confidence ?? 'low', explore_day: o.explore_day ?? null, reason: String(o.reason ?? '').slice(0, 500) } }];"
       },
-      "id": "aa97f387-2d03-d9db-b5db-ca433a3a2e74",
+      "id": "95c37abd-c854-8651-3ff9-f9026be2507d",
       "position": [
         1560,
         0
@@ -250,7 +250,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "a849897f-d79e-fe4e-86b2-4e9662a31742",
+      "id": "a184995f-f120-7525-d5de-20977a634a8f",
       "position": [
         1820,
         0

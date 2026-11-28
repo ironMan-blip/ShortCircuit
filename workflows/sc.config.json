@@ -13,7 +13,7 @@
           "init"
         ]
       },
-      "id": "80073bf4-1a35-be56-578e-32413727e920",
+      "id": "c51b6150-06c6-8846-ff43-dc0cdb2ab95a",
       "position": [
         0,
         0
@@ -33,7 +33,7 @@
           ]
         }
       },
-      "id": "e0d4f87b-f33b-99a8-226e-06539e0e13e3",
+      "id": "6e89ff2b-0aa7-c6c9-e5a8-9897574152b5",
       "position": [
         0,
         220
@@ -44,7 +44,7 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "parameters": {},
-      "id": "b5e9dab9-02fb-2ae1-73a8-6cad22a91dd4",
+      "id": "d1c93f6c-1227-fc14-de8b-c0fc58534feb",
       "position": [
         0,
         440
@@ -66,7 +66,7 @@
         }
       },
       "executeOnce": true,
-      "id": "f75a6236-199c-a70e-1292-4c51f74f35e5",
+      "id": "848661b0-5378-e7d4-1534-24378e0b8760",
       "position": [
         260,
         0
@@ -81,7 +81,7 @@
         "language": "javaScript",
         "jsCode": "// No node compares stored settings with $env and lists what to do.\nconst s = $input.first().json.seen ?? {};\nconst owner = $env.OWNER_EMAIL ?? ''; const handle = $env.CHANNEL_HANDLE ?? '';\nconst first = !s.owner_email;\nreturn [{ json: { seen: s, first, owner, handle,\n  folders: !s.drive_folder || !s.drive_ready,\n  owner_changed: !first && s.owner_email !== owner,\n  share: s.drive_owner !== owner,\n  channel: first || !s.channel_id || s.channel_handle !== handle } }];"
       },
-      "id": "68a6f46a-417c-60a7-5488-fd99f26a633d",
+      "id": "80073bf4-1a35-be56-578e-32413727e920",
       "position": [
         520,
         0
@@ -116,7 +116,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "32ed182f-c948-7a57-db9f-df54b169d171",
+      "id": "e0d4f87b-f33b-99a8-226e-06539e0e13e3",
       "position": [
         780,
         0
@@ -151,7 +151,7 @@
       "maxTries": 3,
       "waitBetweenTries": 20000,
       "onError": "continueErrorOutput",
-      "id": "1ad9784f-e7cf-504d-b5d4-748f8c80f787",
+      "id": "b5e9dab9-02fb-2ae1-73a8-6cad22a91dd4",
       "position": [
         1040,
         0
@@ -174,7 +174,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "748e310a-046e-f88e-9011-1f2e929fa028",
+      "id": "f75a6236-199c-a70e-1292-4c51f74f35e5",
       "position": [
         1300,
         0
@@ -209,7 +209,7 @@
       "maxTries": 3,
       "waitBetweenTries": 20000,
       "onError": "continueErrorOutput",
-      "id": "bf0d1ecb-b7c8-1e76-cf0e-55d942bd45f7",
+      "id": "68a6f46a-417c-60a7-5488-fd99f26a633d",
       "position": [
         1560,
         0
@@ -232,7 +232,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "4f6a781b-f71d-46f5-be55-e14a5078d862",
+      "id": "32ed182f-c948-7a57-db9f-df54b169d171",
       "position": [
         1820,
         0
@@ -298,7 +298,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "391d729d-77be-7f41-40e2-a28c2470ace1",
+      "id": "1ad9784f-e7cf-504d-b5d4-748f8c80f787",
       "position": [
         1820,
         220
@@ -333,7 +333,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "d2e4402c-05e3-4812-03d9-ca1a1402197a",
+      "id": "748e310a-046e-f88e-9011-1f2e929fa028",
       "position": [
         780,
         220
@@ -368,7 +368,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "c9c28b55-273e-315a-8325-7e36a47fe206",
+      "id": "bf0d1ecb-b7c8-1e76-cf0e-55d942bd45f7",
       "position": [
         1040,
         220
@@ -391,7 +391,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "805ba14f-daea-bf83-564d-b86d0a3b8b53",
+      "id": "4f6a781b-f71d-46f5-be55-e14a5078d862",
       "position": [
         1300,
         220
@@ -413,7 +413,7 @@
         }
       },
       "alwaysOutputData": true,
-      "id": "f77e94af-7e0b-5483-bcb0-091f2bcbe523",
+      "id": "391d729d-77be-7f41-40e2-a28c2470ace1",
       "position": [
         1300,
         440
@@ -428,7 +428,7 @@
         "language": "javaScript",
         "jsCode": "// No node HTML-escapes text.\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst job = (id) => 'SC-' + String(id).padStart(4, '0');\n// The Code node sandbox has no URL class: a strict https parser (no userinfo, no IP literal, dotted host).\nconst okUrl = (u) => { const m = /^https:\\/\\/([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(:[0-9]{1,5})?([/?#][^\\s\"'<>\\\\]*)?$/i.exec(String(u ?? '').trim());\n  if (!m || /^[0-9.]+$/.test(m[1])) return null; const rest = m[3] ?? '/'; return 'https://' + m[1].toLowerCase() + (m[2] ?? '') + (rest[0] === '/' ? rest : '/' + rest); };\nconst hostOf = (u) => { const x = okUrl(u); return x ? x.slice(8).split(/[/:?#]/)[0] : null; };\nconst fmt = (t) => t ? new Date(t).toLocaleString('en-GB', { timeZone: $env.TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '(no slot yet)';\nconst page = (title, body) => '<div style=\"font-family:system-ui,sans-serif;max-width:640px\">' + '<h2 style=\"margin:0 0 12px\">' + esc(title) + '</h2>' + body + '</div>';\nconst button = (href, label) => okUrl(href) ? '<p><a href=\"' + esc(okUrl(href)) + '\" style=\"display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none\">' + esc(label) + '</a></p>' : '';\nconst cancelLink = (id) => button($env.WEBHOOK_URL + 'form/sc-cancel?Job=' + job(id), 'Cancel this video');\n\nconst rows = $input.all().map((i) => i.json).filter((j) => j.job);\nconst list = rows.length ? '<ul>' + rows.map((r) => '<li>' + esc(r.job) + ' · ' + esc(r.status) + ' · ' + esc(r.title) + '</li>').join('') + '</ul><p>Each gets a fresh review form at this address, with a full time window. Forms mailed to the old address no longer count.</p>' : '<p>No job is waiting for a review right now.</p>';\nreturn [{ json: { subject: 'ShortCircuit now mails you here', html: page('ShortCircuit now mails you here', '<p>OWNER_EMAIL was changed to this address. Every ShortCircuit mail comes here from now on.</p>' + list) } }];"
       },
-      "id": "3cf78eae-0b0b-6341-51f1-986a48abcef7",
+      "id": "d2e4402c-05e3-4812-03d9-ca1a1402197a",
       "position": [
         1560,
         220
@@ -483,7 +483,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "d834c440-15e0-3d12-2741-aa4c345859ea",
+      "id": "c9c28b55-273e-315a-8325-7e36a47fe206",
       "position": [
         1820,
         440
@@ -505,7 +505,7 @@
         }
       },
       "alwaysOutputData": true,
-      "id": "b9cee46e-a191-f346-3d13-b5ac1d5727ee",
+      "id": "805ba14f-daea-bf83-564d-b86d0a3b8b53",
       "position": [
         2080,
         0
@@ -528,7 +528,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "d83053b4-05d8-6860-68de-d19451fe7232",
+      "id": "f77e94af-7e0b-5483-bcb0-091f2bcbe523",
       "position": [
         2340,
         0
@@ -551,7 +551,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "3adde475-1211-e076-8b1e-7db0761c6983",
+      "id": "3cf78eae-0b0b-6341-51f1-986a48abcef7",
       "position": [
         2600,
         0
@@ -586,7 +586,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "819960ab-0258-4f3e-67f6-eaf82f1841e9",
+      "id": "d834c440-15e0-3d12-2741-aa4c345859ea",
       "position": [
         780,
         440
@@ -607,7 +607,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "967019d4-80cd-df19-f0b7-f297e15e0d0d",
+      "id": "b9cee46e-a191-f346-3d13-b5ac1d5727ee",
       "position": [
         1040,
         440
@@ -642,7 +642,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "35780886-4ee7-0c2d-79df-dccfbeb0b157",
+      "id": "d83053b4-05d8-6860-68de-d19451fe7232",
       "position": [
         1300,
         660
@@ -681,7 +681,7 @@
       "maxTries": 3,
       "waitBetweenTries": 20000,
       "onError": "continueErrorOutput",
-      "id": "2d82af59-34bf-edca-5725-6e927bb8ecae",
+      "id": "3adde475-1211-e076-8b1e-7db0761c6983",
       "position": [
         1560,
         440
@@ -716,7 +716,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "0290427b-caad-7b93-dc31-4de54c5d868c",
+      "id": "819960ab-0258-4f3e-67f6-eaf82f1841e9",
       "position": [
         1820,
         660
@@ -754,7 +754,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "793ff39a-ffbc-d2ee-6476-446b458048ff",
+      "id": "967019d4-80cd-df19-f0b7-f297e15e0d0d",
       "position": [
         2080,
         220
@@ -769,7 +769,7 @@
         "language": "javaScript",
         "jsCode": "// No node picks one permission by e-mail address.\nconst old = String($('Changes').first().json.seen.drive_owner ?? '').toLowerCase();\nconst p = ($input.first().json.permissions ?? []).find((x) => x.type === 'user' && x.role !== 'owner' && String(x.emailAddress).toLowerCase() === old && old !== String($env.OWNER_EMAIL).toLowerCase());\nreturn p ? [{ json: { permission_id: p.id } }] : [{ json: { permission_id: null } }];"
       },
-      "id": "2323118d-7d22-95f0-5bdf-9b5262c4708e",
+      "id": "35780886-4ee7-0c2d-79df-dccfbeb0b157",
       "position": [
         2340,
         220
@@ -804,7 +804,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "13655bac-3153-f1e6-ab84-d0156770eaf6",
+      "id": "2d82af59-34bf-edca-5725-6e927bb8ecae",
       "position": [
         2600,
         220
@@ -833,7 +833,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 10000,
-      "id": "efc762d5-a4b7-82a9-334d-8db789172cca",
+      "id": "0290427b-caad-7b93-dc31-4de54c5d868c",
       "position": [
         2860,
         0
@@ -856,7 +856,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "96d6b168-f85c-9c10-9518-3def2b281dcd",
+      "id": "793ff39a-ffbc-d2ee-6476-446b458048ff",
       "position": [
         3120,
         0
@@ -922,7 +922,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "c78ed33f-92b1-394a-acc4-aeaa332540b4",
+      "id": "2323118d-7d22-95f0-5bdf-9b5262c4708e",
       "position": [
         3120,
         220
@@ -957,7 +957,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "b41a4ee5-0350-4490-c32d-8e10707e89d7",
+      "id": "13655bac-3153-f1e6-ab84-d0156770eaf6",
       "position": [
         780,
         660
@@ -1001,7 +1001,7 @@
         }
       },
       "onError": "continueErrorOutput",
-      "id": "d15bd4c7-a5b2-bffb-c867-1a69974f0403",
+      "id": "efc762d5-a4b7-82a9-334d-8db789172cca",
       "position": [
         1040,
         660
@@ -1036,7 +1036,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "6967c6b0-939f-d0ad-d8b0-9d93c24d1186",
+      "id": "96d6b168-f85c-9c10-9518-3def2b281dcd",
       "position": [
         1300,
         880
@@ -1071,7 +1071,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "aaa9285d-6311-7950-631e-fadfd4a837ec",
+      "id": "c78ed33f-92b1-394a-acc4-aeaa332540b4",
       "position": [
         1560,
         660
@@ -1094,7 +1094,7 @@
       },
       "alwaysOutputData": true,
       "executeOnce": true,
-      "id": "fbf802fc-7165-4db0-25e3-ab48c6a995ff",
+      "id": "b41a4ee5-0350-4490-c32d-8e10707e89d7",
       "position": [
         1820,
         880
@@ -1117,7 +1117,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "3d2b83b3-ec58-7184-1ee6-4b2817e1b220",
+      "id": "d15bd4c7-a5b2-bffb-c867-1a69974f0403",
       "position": [
         2080,
         440
@@ -1140,7 +1140,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "3230dad0-7bb7-776e-261a-cd3389b90a16",
+      "id": "6967c6b0-939f-d0ad-d8b0-9d93c24d1186",
       "position": [
         2340,
         440
@@ -1163,7 +1163,7 @@
           "name": "SC Postgres"
         }
       },
-      "id": "3fa7875a-d838-1f4b-090c-7e5e86f33138",
+      "id": "aaa9285d-6311-7950-631e-fadfd4a837ec",
       "position": [
         2600,
         440

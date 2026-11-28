@@ -8,7 +8,8 @@ The real goal is to **learn n8n multi-AI orchestration**. Native n8n nodes come 
 node fits. Full design: [`docs/PLAN.md`](docs/PLAN.md).
 
 - Seven worker agents on local (Ollama) or free-tier models (Gemini, Groq), with fallback chains.
-- A Master agent (Claude, via n8n's Anthropic Chat Model node) reviews and triages.
+- A Master agent (Gemini free tier, via n8n's Gemini Chat Model node) reviews and triages.
+- Everything is free: no card or billing account anywhere.
 - The owner reviews through n8n forms mailed by Gmail, reachable only over Tailscale.
   Silence approves; a buffer of 3+ scheduled videos keeps the daily slot safe.
 
@@ -191,7 +192,7 @@ classDiagram
     }
 
     class Master {
-        <<Claude>>
+        <<Gemini>>
         +review(output) verdict  «judge, via sc.ask_master»
         +triage(job)  «AI Agent with tools, via sc.master»
         +dailyReview()  «21:00 every day»
@@ -282,8 +283,8 @@ bash scripts/import-workflows.sh   # creates missing credentials (empty), import
 ```
 
 Open **Credentials** and fill in each one (PLAN §10.2): Gmail Bot, Drive Bot, YouTube Channel
-(OAuth), SC Postgres (password = `POSTGRES_APP_PASSWORD`), Gemini, Groq, Ollama, Anthropic,
-Anthropic Header (`x-api-key`), SC Cancel Form (Basic Auth). Run `sc.config` once by hand (makes
+(OAuth), SC Postgres (password = `POSTGRES_APP_PASSWORD`), Gemini (workers and Master), Groq, Ollama,
+SC Cancel Form (Basic Auth). Run `sc.config` once by hand (makes
 the Drive folders), then `sc.fixtures` once (loads `tests/agents/` into the Data Tables), and
 pick the table `eval_<agent>` in each `sc.eval.<agent>` trigger once.
 
